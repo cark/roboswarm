@@ -1,0 +1,4 @@
+- ui scaling in chrome ?
+- mouse pan speed proportional to screen size
+- first robots spawning outside level, I guess  GlobalTransform not yet set
+- mouse over click sensor

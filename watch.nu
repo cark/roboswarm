@@ -1,0 +1,1 @@
+cargo watch -c -x "run --features dev"

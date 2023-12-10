@@ -1,0 +1,9 @@
+[target.wasm32-unknown-unknown]
+runner = "wasm-server-runner"
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# [target.x86_64-pc-windows-msvc]
+# linker = "rust-lld.exe"
+# rustflags = ["-Zshare-generics=y"]
