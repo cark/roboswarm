@@ -159,6 +159,9 @@ pub struct LevelSizeInfo {
     pub tile_size: i32,
 }
 
+#[derive(Component)]
+pub struct NoPlacingHere;
+
 #[derive(Component, Default)]
 pub struct WallCache {
     pub items: HashMap<GridCoords, Entity>,
@@ -240,6 +243,7 @@ pub fn level_changed(
                     level_tr.translation = (size_info.pixel_size().as_vec2() * -0.5).extend(-20.0);
                 }
                 inventory.arrow_count = *level.get_int_field("player_arrows").unwrap() as u32;
+                inventory.fork_count = *level.get_int_field("player_forks").unwrap() as u32;
 
                 level_size.0 = Some(size_info);
             }

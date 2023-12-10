@@ -9,6 +9,7 @@ use crate::{
     explosion::ExplosionEvent,
     game::GameState,
     hp::{Dead, Life},
+    levels::NoPlacingHere,
     load::TextureAssets,
     physics::{coll_groups, CollisionCache, ObjectGroup, Team},
     robot::{Robot, SpawnRobotEvent},
@@ -150,6 +151,7 @@ pub fn check_added_portals(
     for (portal_entity, portal, team, portal_tr) in &q_portal {
         cmd.entity(portal_entity)
             .insert((
+                NoPlacingHere,
                 Life {
                     max_hp: PORTAL_START_HP,
                     curr_hp: PORTAL_START_HP,

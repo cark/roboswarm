@@ -31,6 +31,8 @@ pub struct TextureAssets {
     pub player_portal: Handle<Image>,
     #[asset(path = "arrow.png")]
     pub arrow: Handle<Image>,
+    #[asset(path = "fork.png")]
+    pub fork: Handle<Image>,
     #[asset(path = "nuzzle_flash.png")]
     pub nuzzle_flash: Handle<Image>,
     #[asset(path = "bullet.png")]

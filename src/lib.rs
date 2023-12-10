@@ -4,6 +4,7 @@
 mod arrow;
 mod bullet;
 mod explosion;
+mod fork;
 mod game;
 mod game_camera;
 mod game_ui;

@@ -12,4 +12,5 @@ impl Plugin for InventoryPlugin {
 #[derive(Default, Resource)]
 pub struct Inventory {
     pub arrow_count: u32,
+    pub fork_count: u32,
 }

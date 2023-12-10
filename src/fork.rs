@@ -1,26 +1,21 @@
+use std::f32::consts::PI;
+
 use bevy::{
     math::{vec2, vec3},
     prelude::*,
     utils::info,
 };
 use bevy_ecs_ldtk::{
-    ldtk::ldtk_fields::LdtkFields,
-    utils::{
-        grid_coords_to_translation, ldtk_grid_coords_to_grid_coords, translation_to_grid_coords,
-    },
-    EntityInstance, GridCoords, LdtkEntity, LevelIid,
+    utils::{grid_coords_to_translation, translation_to_grid_coords},
+    GridCoords, LevelIid,
 };
-use bevy_rapier2d::{
-    geometry::{ActiveEvents, Collider, Sensor},
-    pipeline::CollisionEvent,
-    plugin::RapierContext,
-};
+use bevy_rapier2d::prelude::*;
 
 use crate::{
     game::GameState,
     game_camera::MouseWorldCoords,
     inventory::Inventory,
-    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere, WallCache},
+    levels::{LevelSize, NoPlacingHere, WallCache},
     load::TextureAssets,
     mouse::{
         ClickSensor, ClickSensorEvent, Drag, DragCancelConfirm, DragCancelRequest, DragDropConfirm,
@@ -31,42 +26,33 @@ use crate::{
     robot::{EngineDir, Robot},
 };
 
-pub struct ArrowPlugin;
+pub struct ForkPlugin;
 
-impl Plugin for ArrowPlugin {
+impl Plugin for ForkPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
             (
-                spawn_draggable_arrow,
+                spawn_draggable_fork,
                 validate_drag,
                 check_click,
                 (drag_cancel_request, drop_request).chain(),
                 update_robot_motors,
-                fixup_enemy_arrow,
+                // fixup_enemy_arrow,
             )
                 .run_if(in_state(GameState::Playing)),
         );
     }
 }
 
-#[derive(Component, Default)]
-struct LdtkDir(IVec2);
-
-#[derive(Bundle, LdtkEntity, Default)]
-pub struct EnemyArrowBundle {
-    #[with(extract_ldtk_dir)]
-    ltdk_dir: LdtkDir,
-    #[grid_coords]
-    grid_coords: GridCoords,
-}
-
-fn extract_ldtk_dir(entity_instance: &EntityInstance) -> LdtkDir {
-    LdtkDir(*entity_instance.get_point_field("direction").unwrap())
-}
+#[derive(Component)]
+pub struct DraggedFork;
 
 #[derive(Component)]
-pub struct DraggedArrow;
+struct ForkClickSensor;
+
+#[derive(Component)]
+struct ForkRobotSensor;
 
 #[derive(Component, PartialEq)]
 enum DragState {
@@ -75,29 +61,24 @@ enum DragState {
 }
 
 #[derive(Component)]
-pub struct Arrow {
-    dir: Vec2,
+pub struct Fork {
+    dirs: [Vec2; 2],
+    forked_count: usize,
 }
 
 #[derive(Component)]
 struct ValidDrag;
 
-#[derive(Component)]
-struct ArrowClickSensor;
-
-#[derive(Component)]
-struct ArrowRobotSensor;
-
-fn spawn_draggable_arrow(
+fn spawn_draggable_fork(
     mut cmd: Commands,
     assets: Res<TextureAssets>,
-    q_drag: Query<(Entity, &DragPos), (With<DraggedArrow>, Added<Drag>)>,
+    q_drag: Query<(Entity, &DragPos), (With<DraggedFork>, Added<Drag>)>,
 ) {
     for (entity, drag_pos) in &q_drag {
         cmd.entity(entity).insert((
             SpriteBundle {
                 transform: Transform::from_translation(drag_pos.0.extend(0.0)),
-                texture: assets.arrow.clone(),
+                texture: assets.fork.clone(),
                 ..Default::default()
             },
             DragState::Dragging,
@@ -107,7 +88,7 @@ fn spawn_draggable_arrow(
 
 fn validate_drag(
     mut cmd: Commands,
-    mut q_drag: Query<(Entity, &mut Transform, &mut Sprite, &DragState), With<DraggedArrow>>,
+    mut q_drag: Query<(Entity, &mut Transform, &mut Sprite, &DragState), With<DraggedFork>>,
     mouse_pos: Res<MouseWorldCoords>,
     q_level: Query<(&GlobalTransform, &WallCache), With<LevelIid>>,
     level_size: Res<LevelSize>,
@@ -161,90 +142,11 @@ fn validate_drag(
 
 fn drag_cancel_request(
     mut cmd: Commands,
-    q_drag: Query<Entity, (Added<DragCancelRequest>, With<DraggedArrow>)>,
+    q_drag: Query<Entity, (Added<DragCancelRequest>, With<DraggedFork>)>,
 ) {
     for entity in &q_drag {
         cmd.entity(entity).insert(DragCancelConfirm);
     }
-}
-
-fn fixup_enemy_arrow(
-    mut cmd: Commands,
-    q_arrow: Query<(Entity, &LdtkDir, &GridCoords, &Transform)>,
-    q_level: Query<Entity, With<LevelIid>>,
-    level_size: Res<LevelSize>,
-    mut ev_level_loaded: EventReader<LevelLoadedEvent>,
-) {
-    for _ in ev_level_loaded.read() {
-        for (entity, LdtkDir(ldtk_dir), grid_coords, tr) in &q_arrow {
-            if let Some(level_size) = level_size.0 {
-                let dir = ldtk_grid_coords_to_grid_coords(*ldtk_dir, level_size.size.y);
-                let dir = grid_coords_to_translation(dir, level_size.tile_size_vec());
-                let level_entity = q_level.single();
-                cmd.entity(entity).remove::<LdtkDir>();
-                let arrow = spawn_arrow(
-                    &mut cmd,
-                    *tr,
-                    (dir - tr.translation.truncate()).normalize(),
-                    Team::Enemy,
-                    None,
-                    *grid_coords,
-                );
-                cmd.entity(level_entity).add_child(arrow);
-            }
-        }
-    }
-}
-
-fn spawn_arrow(
-    cmd: &mut Commands,
-    tr: Transform,
-    dir: Vec2,
-    team: Team,
-    texture: Option<Handle<Image>>,
-    grid_coords: GridCoords,
-) -> Entity {
-    let arrow_entity = cmd.spawn((Arrow { dir }, team, grid_coords)).id();
-    if team == Team::Player {
-        cmd.entity(arrow_entity).insert((
-            SpriteBundle {
-                texture: texture.unwrap(),
-                transform: tr,
-                ..Default::default()
-            },
-            NoPlacingHere,
-        ));
-    } else {
-        cmd.entity(arrow_entity)
-            .insert(TransformBundle::from_transform(tr));
-    }
-    cmd.entity(arrow_entity).with_children(|cmd| {
-        if team == Team::Player {
-            cmd.spawn((
-                ArrowClickSensor,
-                ClickSensor,
-                Collider::capsule(vec2(-4., 0.0), vec2(3., 0.0), 12.),
-                Sensor,
-                TransformBundle::default(),
-            ));
-        }
-        cmd.spawn((
-            ArrowRobotSensor,
-            Sensor,
-            Collider::ball(if team == Team::Player { 96. } else { 96. * 2. }),
-            match team {
-                Team::Player => {
-                    coll_groups(ObjectGroup::PLAYER_ARROW_SENSOR, ObjectGroup::PLAYER_ROBOT)
-                }
-                Team::Enemy => {
-                    coll_groups(ObjectGroup::ENEMY_ARROW_SENSOR, ObjectGroup::ENEMY_ROBOT)
-                }
-            },
-            TransformBundle::default(),
-            ActiveEvents::COLLISION_EVENTS,
-        ));
-    });
-    arrow_entity
 }
 
 fn drop_request(
@@ -257,7 +159,7 @@ fn drop_request(
             &mut DragState,
             &GridCoords,
         ),
-        (With<DragDropRequest>, With<DraggedArrow>),
+        (With<DragDropRequest>, With<DraggedFork>),
     >,
     assets: Res<TextureAssets>,
     mut inventory: ResMut<Inventory>,
@@ -273,18 +175,19 @@ fn drop_request(
                 DragState::SettingDirection(_) => {
                     let dir = drag_tr.rotation.mul_vec3(vec3(1.0, 0.0, 0.0));
                     let (level_entity, level_gtr) = q_level.single();
-                    inventory.arrow_count -= 1;
+                    inventory.fork_count -= 1;
                     cmd.entity(entity).insert(DragDropConfirm);
                     let local_pos = drag_tr.translation - level_gtr.translation();
-                    let arrow = spawn_arrow(
+                    //info(grid_coords);
+                    let fork = spawn_fork(
                         &mut cmd,
                         drag_tr.with_translation(local_pos),
                         dir.truncate(),
                         Team::Player,
-                        Some(assets.arrow.clone()),
+                        Some(assets.fork.clone()),
                         *grid_coords,
                     );
-                    cmd.entity(level_entity).add_child(arrow);
+                    cmd.entity(level_entity).add_child(fork);
                 }
             }
         } else {
@@ -293,27 +196,95 @@ fn drop_request(
     }
 }
 
+fn spawn_fork(
+    cmd: &mut Commands,
+    tr: Transform,
+    dir: Vec2,
+    team: Team,
+    texture: Option<Handle<Image>>,
+    grid_coords: GridCoords,
+) -> Entity {
+    let dirs = [
+        Quat::from_rotation_z(PI / 4.)
+            .mul_vec3(dir.extend(0.0))
+            .truncate(),
+        Quat::from_rotation_z(-PI / 4.)
+            .mul_vec3(dir.extend(0.0))
+            .truncate(),
+    ];
+    let fork_entity = cmd
+        .spawn((
+            Fork {
+                dirs,
+                forked_count: 0,
+            },
+            team,
+            grid_coords,
+        ))
+        .id();
+    if team == Team::Player {
+        cmd.entity(fork_entity).insert((
+            SpriteBundle {
+                texture: texture.unwrap(),
+                transform: tr,
+                ..Default::default()
+            },
+            NoPlacingHere,
+        ));
+    } else {
+        cmd.entity(fork_entity)
+            .insert(TransformBundle::from_transform(tr));
+    }
+    cmd.entity(fork_entity).with_children(|cmd| {
+        if team == Team::Player {
+            cmd.spawn((
+                ForkClickSensor,
+                ClickSensor,
+                Collider::capsule(vec2(-4., 0.0), vec2(3., 0.0), 12.),
+                Sensor,
+                TransformBundle::default(),
+            ));
+        }
+        cmd.spawn((
+            ForkRobotSensor,
+            Sensor,
+            Collider::ball(if team == Team::Player { 96. } else { 96. * 2. }),
+            match team {
+                Team::Player => {
+                    coll_groups(ObjectGroup::PLAYER_FORK_SENSOR, ObjectGroup::PLAYER_ROBOT)
+                }
+                Team::Enemy => {
+                    coll_groups(ObjectGroup::ENEMY_FORK_SENSOR, ObjectGroup::ENEMY_ROBOT)
+                }
+            },
+            TransformBundle::default(),
+            ActiveEvents::COLLISION_EVENTS,
+        ));
+    });
+    fork_entity
+}
+
 fn check_click(
     mut cmd: Commands,
     mut ev_click_sensor: EventReader<ClickSensorEvent>,
-    q_sensor: Query<&Parent, With<ArrowClickSensor>>,
-    q_arrow: Query<(Entity, &GlobalTransform, &Team), With<Arrow>>,
+    q_sensor: Query<&Parent, With<ForkClickSensor>>,
+    q_fork: Query<(Entity, &GlobalTransform, &Team), With<Fork>>,
     mut inventory: ResMut<Inventory>,
 ) {
     for ClickSensorEvent(sensor_entity) in ev_click_sensor.read() {
-        if let Ok((arrow_entity, arrow_gtr, team)) = q_sensor
+        if let Ok((fork_entity, fork_gtr, team)) = q_sensor
             .get(*sensor_entity)
             .map(|parent| parent.get())
-            .and_then(|arrow_entity| q_arrow.get(arrow_entity))
+            .and_then(|fork_entity| q_fork.get(fork_entity))
         {
             if *team == Team::Player {
-                inventory.arrow_count += 1;
+                inventory.fork_count += 1;
                 cmd.spawn((
                     Drag,
-                    DragPos(arrow_gtr.translation().truncate()),
-                    DraggedArrow,
+                    DragPos(fork_gtr.translation().truncate()),
+                    DraggedFork,
                 ));
-                cmd.entity(arrow_entity).despawn_recursive();
+                cmd.entity(fork_entity).despawn_recursive();
             }
         }
     }
@@ -321,8 +292,8 @@ fn check_click(
 
 fn update_robot_motors(
     mut collision_events: EventReader<CollisionEvent>,
-    q_robot_sensor: Query<&Parent, With<ArrowRobotSensor>>,
-    q_arrow: Query<(&Arrow, &Team)>,
+    q_robot_sensor: Query<&Parent, With<ForkRobotSensor>>,
+    mut q_fork: Query<(&mut Fork, &Team)>,
     mut q_robot: Query<(&mut EngineDir, &Team), With<Robot>>,
 ) {
     for ev in collision_events.read() {
@@ -333,14 +304,15 @@ fn update_robot_motors(
                 (false, true) => (*e2, *e1),
                 _ => continue,
             };
-            if let (Ok((mut engine_dir, robot_team)), Ok((arrow, arrow_team))) = (
+            if let (Ok((mut engine_dir, robot_team)), Ok((mut fork, fork_team))) = (
                 q_robot.get_mut(other),
                 q_robot_sensor
                     .get(sensor)
-                    .and_then(|parent| q_arrow.get(parent.get())),
+                    .and_then(|parent| q_fork.get_mut(parent.get())),
             ) {
-                if robot_team == arrow_team {
-                    engine_dir.0 = arrow.dir;
+                if robot_team == fork_team {
+                    engine_dir.0 = fork.dirs[fork.forked_count % 2];
+                    fork.forked_count += 1;
                 }
             }
         }

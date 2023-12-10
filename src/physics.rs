@@ -56,6 +56,8 @@ impl ObjectGroup {
     pub const ENEMY_TARGETING_SENSOR: u32 = 1 << 13;
     pub const PLAYER_BULLET: u32 = 1 << 14;
     pub const ENEMY_BULLET: u32 = 1 << 15;
+    pub const PLAYER_FORK_SENSOR: u32 = 1 << 16;
+    pub const ENEMY_FORK_SENSOR: u32 = 1 << 17;
 }
 
 pub fn coll_groups(members: u32, filters: u32) -> CollisionGroups {

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     arrow::DraggedArrow,
+    fork::DraggedFork,
     game::{GameState, LevelState},
     game_camera::MouseWorldCoords,
     inventory::Inventory,
@@ -35,6 +36,7 @@ impl Plugin for GameUiPlugin {
                 (
                     button_system,
                     update_arrow_button,
+                    update_fork_button,
                     (maybe_disable_previous_level, maybe_disable_next_level).after(button_system),
                 )
                     .run_if(in_state(GameState::Playing)),
@@ -53,6 +55,8 @@ enum ButtonState {
 
 #[derive(Component)]
 struct ArrowButton;
+#[derive(Component)]
+struct ForkButton;
 
 #[derive(Component)]
 struct NextLevelButton;
@@ -66,6 +70,7 @@ struct MainMenuButton;
 #[derive(Component)]
 enum ButtonType {
     Arrow,
+    Fork,
     Reset,
     NextLevel,
     PreviousLevel,
@@ -74,6 +79,8 @@ enum ButtonType {
 
 #[derive(Component)]
 struct ArrowButtonText;
+#[derive(Component)]
+struct ForkButtonText;
 
 #[derive(Event)]
 pub struct ResetLevelEvent;
@@ -210,6 +217,12 @@ fn button_system(
                                 ev_next_level.send(ChangeLevelEvent::Previous)
                             }
                             ButtonType::MainMenu => ev_main_menu.send(MainMenuEvent),
+                            ButtonType::Fork => {
+                                if inventory.fork_count > 0 && *mouse_state != MouseState::Dragging
+                                {
+                                    cmd.spawn((Drag, DragPos(mouse_pos.0.unwrap()), DraggedFork));
+                                }
+                            }
                         },
                         _ => *button_state = ButtonState::None,
                     }
@@ -416,7 +429,7 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                     width: Val::Percent(100.0),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    flex_direction: FlexDirection::Column,
+                    flex_direction: FlexDirection::Row,
 
                     ..Default::default()
                 },
@@ -493,6 +506,76 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                         });
                     });
                 });
+                cmd.spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::VMin(8.),
+                            height: Val::VMin(8.),
+                            border: UiRect::all(Val::Px(5.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..Default::default()
+                        },
+                        border_color: BorderColor(Color::BLACK),
+                        background_color: NORMAL_BUTTON.into(),
+                        ..Default::default()
+                    },
+                    ButtonState::None,
+                    ForkButton,
+                    ButtonType::Fork,
+                ))
+                .with_children(|cmd| {
+                    cmd.spawn(ImageBundle {
+                        image: UiImage {
+                            texture: asset_server.load("fork.png"),
+                            ..Default::default()
+                        },
+                        style: Style {
+                            width: Val::Percent(80.),
+                            height: Val::Percent(80.),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
+                    .with_children(|cmd| {
+                        cmd.spawn(NodeBundle {
+                            style: Style {
+                                height: Val::Percent(100.),
+                                width: Val::Percent(100.),
+                                align_items: AlignItems::FlexEnd,
+                                ..Default::default()
+                            },
+                            // background_color: BackgroundColor(Color::BLUE),
+                            ..Default::default()
+                        })
+                        .with_children(|cmd| {
+                            cmd.spawn(NodeBundle {
+                                style: Style {
+                                    width: Val::Percent(100.0),
+                                    flex_direction: FlexDirection::Row,
+                                    justify_content: JustifyContent::FlexEnd,
+                                    align_items: AlignItems::FlexEnd,
+                                    ..Default::default()
+                                },
+                                // background_color: BackgroundColor(Color::RED),
+                                ..Default::default()
+                            })
+                            .with_children(|cmd| {
+                                cmd.spawn((
+                                    TextBundle::from_section(
+                                        "0",
+                                        TextStyle {
+                                            font: asset_server.load("GeoFont-Bold.otf"),
+                                            font_size: 24.0,
+                                            color: Color::rgb(0.9, 0.9, 0.9),
+                                        },
+                                    ),
+                                    ForkButtonText,
+                                ));
+                            });
+                        });
+                    });
+                });
             });
         });
     });
@@ -505,6 +588,17 @@ fn update_arrow_button(
     if inventory.is_changed() {
         if let Ok(mut text) = q_arrow_button_text.get_single_mut() {
             text.sections[0].value = inventory.arrow_count.to_string();
+        }
+    }
+}
+
+fn update_fork_button(
+    mut q_fork_button_text: Query<&mut Text, With<ForkButtonText>>,
+    inventory: Res<Inventory>,
+) {
+    if inventory.is_changed() {
+        if let Ok(mut text) = q_fork_button_text.get_single_mut() {
+            text.sections[0].value = inventory.fork_count.to_string();
         }
     }
 }
