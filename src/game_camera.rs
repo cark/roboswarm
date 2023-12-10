@@ -1,7 +1,10 @@
 use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_ecs_ldtk::prelude::*;
+use bevy_ecs_ldtk::{ldtk::loaded_level::LoadedLevel, prelude::*};
 
-use crate::{game::GameState, levels::LevelLoadedEvent};
+use crate::{
+    game::GameState,
+    levels::{level_changed, LevelLoadedEvent},
+};
 
 // const CAMERA_SPEED: f32 = 100.0;
 
@@ -23,11 +26,11 @@ impl Plugin for GameCameraPlugin {
             .insert_resource(MouseScreenCoords::default())
             .insert_resource(CameraTargetPos(Vec3::ZERO))
             .insert_resource(CameraTargetScale::new())
-            .add_systems(Update, update_mouse_coords)
+            //maybe we'll have to put fixup_camera_start in a preupdate
+            .add_systems(Update, (update_mouse_coords, fixup_camera_start))
             .add_systems(
                 PostUpdate,
-                (move_camera, scale_camera, fixup_camera_start)
-                    .run_if(in_state(GameState::Playing)),
+                (move_camera, scale_camera).run_if(in_state(GameState::Playing)),
             );
         // app.add_systems(Update, bleh.run_if(in_state(GameState::Playing)));
     }
@@ -62,11 +65,16 @@ fn fixup_camera_start(
     mut cmd: Commands,
     mut ev_level_loaded: EventReader<LevelLoadedEvent>,
     q_camera_start: Query<(Entity, &GlobalTransform), With<CameraStart>>,
-    q_level: Query<&GlobalTransform, With<LevelIid>>,
+    //q_level: Query<Entity, (With<LevelIid>, Changed<Transform>)>,
     mut camera_target_pos: ResMut<CameraTargetPos>,
 ) {
     for _ in ev_level_loaded.read() {
+        //for _ in &q_level {
         for (entity, gtr) in &q_camera_start {
+            info!(
+                "fixup camera. camera start global translation: {}",
+                gtr.translation()
+            );
             //println!("{}", gtr.translation());
             //println!("{}", q_level.single().translation());
             camera_target_pos.0 = gtr.translation();

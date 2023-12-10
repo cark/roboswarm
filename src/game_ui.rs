@@ -15,7 +15,9 @@ impl Plugin for GameUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ResetLevelEvent>()
             .add_event::<ChangeLevelEvent>()
+            .add_event::<MainMenuEvent>()
             .add_systems(OnEnter(GameState::Playing), instanciate)
+            .add_systems(OnExit(GameState::Playing), destroy)
             .add_systems(
                 Update,
                 (
@@ -27,6 +29,60 @@ impl Plugin for GameUiPlugin {
             );
     }
 }
+
+#[derive(Component)]
+struct GameUi;
+
+#[derive(Component)]
+enum ButtonState {
+    Down,
+    None,
+}
+
+#[derive(Component)]
+struct ArrowButton;
+
+#[derive(Component)]
+struct NextLevelButton;
+
+#[derive(Component)]
+struct PreviousLevelButton;
+
+#[derive(Component)]
+struct MainMenuButton;
+
+#[derive(Component)]
+enum ButtonType {
+    Arrow,
+    Reset,
+    NextLevel,
+    PreviousLevel,
+    MainMenu,
+}
+
+#[derive(Component)]
+struct ArrowButtonText;
+
+#[derive(Event)]
+pub struct ResetLevelEvent;
+
+#[derive(Event)]
+pub enum ChangeLevelEvent {
+    Next,
+    Previous,
+}
+
+#[derive(Event)]
+pub struct MainMenuEvent;
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct ButtonDisabled;
+
+const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::rgb(0.9, 0.9, 0.9);
+const DISABLED_BUTTON: Color = Color::rgb(0.3, 0.3, 0.3);
 
 fn maybe_disable_next_level(
     mut cmd: Commands,
@@ -69,53 +125,6 @@ fn maybe_disable_previous_level(
     }
 }
 
-#[derive(Component)]
-struct GameUi;
-
-#[derive(Component)]
-enum ButtonState {
-    Down,
-    None,
-}
-
-#[derive(Component)]
-struct ArrowButton;
-
-#[derive(Component)]
-struct NextLevelButton;
-
-#[derive(Component)]
-struct PreviousLevelButton;
-
-#[derive(Component)]
-enum ButtonType {
-    Arrow,
-    Reset,
-    NextLevel,
-    PreviousLevel,
-}
-
-#[derive(Component)]
-struct ArrowButtonText;
-
-#[derive(Event)]
-pub struct ResetLevelEvent;
-
-#[derive(Event)]
-pub enum ChangeLevelEvent {
-    Next,
-    Previous,
-}
-
-#[derive(Component)]
-#[component(storage = "SparseSet")]
-pub struct ButtonDisabled;
-
-const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::rgb(0.9, 0.9, 0.9);
-const DISABLED_BUTTON: Color = Color::rgb(0.3, 0.3, 0.3);
-
 fn button_system(
     mut cmd: Commands,
     mut interaction_query: Query<
@@ -136,6 +145,7 @@ fn button_system(
     mouse_state: Res<MouseState>,
     mut ev_reset_level: EventWriter<ResetLevelEvent>,
     mut ev_next_level: EventWriter<ChangeLevelEvent>,
+    mut ev_main_menu: EventWriter<MainMenuEvent>,
 ) {
     for (
         interaction,
@@ -186,6 +196,7 @@ fn button_system(
                             ButtonType::PreviousLevel => {
                                 ev_next_level.send(ChangeLevelEvent::Previous)
                             }
+                            ButtonType::MainMenu => ev_main_menu.send(MainMenuEvent),
                         },
                         _ => *button_state = ButtonState::None,
                     }
@@ -198,6 +209,12 @@ fn button_system(
                 }
             }
         }
+    }
+}
+
+fn destroy(mut cmd: Commands, q_game_ui: Query<Entity, With<GameUi>>) {
+    for entity in &q_game_ui {
+        cmd.entity(entity).despawn_recursive();
     }
 }
 
@@ -304,7 +321,6 @@ fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
                 NextLevelButton,
                 ButtonState::None,
                 ButtonType::NextLevel,
-                // ButtonDisabled,
                 ButtonBundle {
                     style: Style {
                         width: Val::VMin(7.),
@@ -323,6 +339,39 @@ fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
                 cmd.spawn(ImageBundle {
                     image: UiImage {
                         texture: asset_server.load("next_level_button.png"),
+                        ..Default::default()
+                    },
+                    style: Style {
+                        width: Val::Percent(100.),
+                        height: Val::Percent(100.),
+                        align_items: AlignItems::Center,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            });
+            cmd.spawn((
+                MainMenuButton,
+                ButtonState::None,
+                ButtonType::MainMenu,
+                ButtonBundle {
+                    style: Style {
+                        width: Val::VMin(7.),
+                        height: Val::VMin(7.),
+                        border: UiRect::all(Val::Px(5.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..Default::default()
+                    },
+                    border_color: BorderColor(Color::BLACK),
+                    background_color: NORMAL_BUTTON.into(),
+                    ..Default::default()
+                },
+            ))
+            .with_children(|cmd| {
+                cmd.spawn(ImageBundle {
+                    image: UiImage {
+                        texture: asset_server.load("main_menu_button.png"),
                         ..Default::default()
                     },
                     style: Style {

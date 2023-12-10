@@ -28,6 +28,7 @@ struct Menu;
 
 fn destroy(mut cmd: Commands, q: Query<Entity, With<Menu>>) {
     for e in &q {
+        println!("destroy!");
         cmd.entity(e).despawn_recursive();
     }
 }
@@ -47,30 +48,32 @@ fn button_system(
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     for (interaction, mut color, mut border_color, children) in &mut interaction_query {
-        let text = &mut text_query.get_mut(children[0]).unwrap().sections[0];
-        match *interaction {
-            Interaction::Pressed => {
-                *color = PRESSED_BUTTON.into();
-                border_color.0 = Color::WHITE;
-                text.style.color = Color::BLACK;
-                *button_state = ButtonState::Down;
-            }
-            Interaction::Hovered => {
-                *color = HOVERED_BUTTON.into();
-                border_color.0 = Color::WHITE;
-                text.style.color = Color::rgb(0.9, 0.9, 0.9);
-                match *button_state {
-                    ButtonState::Down => {
-                        next_state.set(GameState::Playing);
-                    }
-                    _ => *button_state = ButtonState::None,
+        if let Ok(mut text) = text_query.get_mut(children[0]) {
+            let text = &mut text.sections[0];
+            match *interaction {
+                Interaction::Pressed => {
+                    *color = PRESSED_BUTTON.into();
+                    border_color.0 = Color::WHITE;
+                    text.style.color = Color::BLACK;
+                    *button_state = ButtonState::Down;
                 }
-            }
-            Interaction::None => {
-                *color = NORMAL_BUTTON.into();
-                border_color.0 = Color::BLACK;
-                text.style.color = Color::rgb(0.9, 0.9, 0.9);
-                *button_state = ButtonState::None;
+                Interaction::Hovered => {
+                    *color = HOVERED_BUTTON.into();
+                    border_color.0 = Color::WHITE;
+                    text.style.color = Color::rgb(0.9, 0.9, 0.9);
+                    match *button_state {
+                        ButtonState::Down => {
+                            next_state.set(GameState::Playing);
+                        }
+                        _ => *button_state = ButtonState::None,
+                    }
+                }
+                Interaction::None => {
+                    *color = NORMAL_BUTTON.into();
+                    border_color.0 = Color::BLACK;
+                    text.style.color = Color::rgb(0.9, 0.9, 0.9);
+                    *button_state = ButtonState::None;
+                }
             }
         }
     }

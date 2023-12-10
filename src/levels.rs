@@ -26,6 +26,7 @@ impl Plugin for LevelsPlugin {
             .add_event::<LevelLoadedEvent>()
             .insert_resource(LevelIndex(0))
             .insert_resource(LevelCount(0))
+            .insert_resource(MaxAttainableLevel(0))
             .insert_resource(LevelSelection::Identifier(LEVEL_NAMES[0].to_string()))
             .insert_resource(LevelSize::default())
             // .insert_resource(CurrentLevel::default())
@@ -34,7 +35,10 @@ impl Plugin for LevelsPlugin {
                 Update,
                 check_ldtk_loaded.run_if(in_state(GameState::LoadingLevels)),
             )
-            .add_systems(OnEnter(GameState::Playing), spawn_ldtk)
+            .add_systems(
+                OnEnter(GameState::Playing),
+                (spawn_ldtk, set_level_index_changed),
+            )
             .add_systems(
                 PostUpdate,
                 level_changed.run_if(in_state(GameState::Playing)),
@@ -58,13 +62,18 @@ impl Plugin for LevelsPlugin {
     }
 }
 
+fn set_level_index_changed(mut level_index: ResMut<LevelIndex>) {
+    level_index.set_changed();
+}
+
 //#[derive(Resource, Default)]
 // pub enum Victory {
 //     #[default]
 //     Undecided,
 
 // }
-
+#[derive(Resource)]
+pub struct MaxAttainableLevel(pub usize);
 #[derive(Resource)]
 pub struct LevelIndex(pub usize);
 
@@ -151,7 +160,8 @@ fn check_ldtk_loaded(
         next_state.set(AFTER_LOAD);
     }
 }
-fn spawn_ldtk(mut cmd: Commands, asset: Res<LdtkAsset>) {
+
+pub fn spawn_ldtk(mut cmd: Commands, asset: Res<LdtkAsset>) {
     let handle = asset.0.clone().unwrap();
     //let level_index = level_selection.as_ref().;
     cmd.spawn((
@@ -164,7 +174,7 @@ fn spawn_ldtk(mut cmd: Commands, asset: Res<LdtkAsset>) {
     ));
 }
 
-fn level_changed(
+pub fn level_changed(
     mut level_events: EventReader<LevelEvent>,
     project_assets: Res<Assets<LdtkProject>>,
     q_project: Query<&Handle<LdtkProject>>,
@@ -260,6 +270,9 @@ fn check_victory(
     mut cmd: Commands,
     q_level: Query<Entity, (With<LevelIid>, Without<Victory>, Without<Loss>)>,
     q_portal: Query<&Team, With<Portal>>,
+    level_index: Res<LevelIndex>,
+    mut max_attainable_level: ResMut<MaxAttainableLevel>,
+    //    level_state:
 ) {
     for e_level in &q_level {
         let mut player_portal_count = 0;
@@ -272,12 +285,13 @@ fn check_victory(
         }
         match (player_portal_count, enemy_portal_count) {
             (0, _) => {
-                println!("loss");
+                println!("loss in level {}", level_index.0);
                 cmd.entity(e_level).insert(Loss);
             }
             (_, 0) => {
-                println!("victory");
+                info!("victory on level {}", level_index.0);
                 cmd.entity(e_level).insert(Victory);
+                max_attainable_level.0 = level_index.0 + 1;
             }
             _ => {}
         }

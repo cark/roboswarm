@@ -1,4 +1,3 @@
 - ui scaling in chrome ?
 - mouse pan speed proportional to screen size
-- first robots spawning outside level, I guess  GlobalTransform not yet set
-- mouse over click sensor
+- camera start sometimes doesn't work due to ordering issues

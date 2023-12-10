@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use bevy_easings::EasingsPlugin;
+use bevy_ecs_ldtk::assets::LdtkProject;
 use bevy_ecs_ldtk::LdtkPlugin;
 
 use crate::arrow::ArrowPlugin;
 use crate::bullet::BulletPlugin;
 use crate::explosion::ExplosionPlugin;
-use crate::game_ui::GameUiPlugin;
+use crate::game_ui::{GameUiPlugin, MainMenuEvent};
 use crate::hp::HpPlugin;
 use crate::inventory::InventoryPlugin;
 use crate::levels::LevelsPlugin;
@@ -27,6 +28,14 @@ pub enum GameState {
     LoadingLevels,
     Menu,
     Playing,
+}
+
+#[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
+pub enum LevelState {
+    #[default]
+    PLaying,
+    Win,
+    Loss,
 }
 
 pub struct GamePlugin;
@@ -57,7 +66,27 @@ impl Plugin for GamePlugin {
             gravity: Vect::new(0.0, 0.0),
             ..Default::default()
         })
-        .add_state::<GameState>();
+        .add_state::<GameState>()
+        .add_state::<LevelState>()
+        .add_systems(
+            PostUpdate,
+            watch_main_menu_event.run_if(in_state(GameState::Playing)),
+        );
         app.add_plugins(RapierDebugRenderPlugin::default());
+    }
+}
+
+fn watch_main_menu_event(
+    mut cmd: Commands,
+    mut ev_main_menu: EventReader<MainMenuEvent>,
+    //project_assets: Res<Assets<LdtkProject>>,
+    q_project: Query<Entity, With<Handle<LdtkProject>>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    for _ev in ev_main_menu.read() {
+        if let Ok(entity) = q_project.get_single() {
+            cmd.entity(entity).despawn_recursive();
+            next_state.0 = Some(GameState::Menu);
+        }
     }
 }
