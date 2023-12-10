@@ -1,7 +1,7 @@
 use crate::arrow::EnemyArrowBundle;
 use crate::game::GameState;
 use crate::game_camera::{CameraStartBundle, CameraTargetPos};
-use crate::game_ui::ResetLevelEvent;
+use crate::game_ui::{NextLevelEvent, ResetLevelEvent};
 use crate::inventory::Inventory;
 use crate::physics::{coll_groups, ObjectGroup, Team};
 use crate::portal::{EnemyPortalBundle, PlayerPortalBundle, Portal};
@@ -18,11 +18,15 @@ use bevy_rapier2d::prelude::*;
 const AFTER_LOAD: GameState = GameState::Playing;
 pub struct LevelsPlugin;
 
+const LEVEL_NAMES: [&str; 2] = ["Level_0", "Level_1"];
+
 impl Plugin for LevelsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(LdtkAsset::default())
             .add_event::<LevelLoadedEvent>()
-            .insert_resource(LevelSelection::index(0))
+            .insert_resource(LevelIndex(0))
+            .insert_resource(LevelCount(0))
+            .insert_resource(LevelSelection::Identifier(LEVEL_NAMES[0].to_string()))
             .insert_resource(LevelSize::default())
             // .insert_resource(CurrentLevel::default())
             .add_systems(OnEnter(GameState::LoadingLevels), load_ldtk)
@@ -43,7 +47,8 @@ impl Plugin for LevelsPlugin {
             .add_systems(Update, spawn_wall_collisions)
             .add_systems(
                 Update,
-                (check_victory, watch_for_reset).run_if(in_state(GameState::Playing)),
+                (check_victory, watch_for_reset, watch_for_next_level)
+                    .run_if(in_state(GameState::Playing)),
             )
             .register_ldtk_int_cell_for_layer::<WallBundle>("Walls", 1)
             .register_ldtk_entity::<PlayerPortalBundle>("PlayerPortal")
@@ -59,6 +64,12 @@ impl Plugin for LevelsPlugin {
 //     Undecided,
 
 // }
+
+#[derive(Resource)]
+pub struct LevelIndex(pub usize);
+
+#[derive(Resource)]
+pub struct LevelCount(pub usize);
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
@@ -161,12 +172,15 @@ fn level_changed(
     mut ev_level_loaded: EventWriter<LevelLoadedEvent>,
     mut level_size: ResMut<LevelSize>,
     mut inventory: ResMut<Inventory>,
+    mut level_count: ResMut<LevelCount>,
 ) {
     for level_event in level_events.read() {
         info(level_event);
         match level_event {
             LevelEvent::Spawned(level_uuid) => {
                 let project = project_assets.get(q_project.single()).unwrap();
+                level_count.0 = project.root_levels().iter().count();
+                info!("level count : {}", level_count.0);
                 let level = project
                     .as_standalone()
                     .get_loaded_level_by_iid(level_uuid.get())
@@ -279,5 +293,17 @@ fn watch_for_reset(
         if let Ok(e_level) = q_level.get_single() {
             cmd.entity(e_level).try_insert(Respawn);
         }
+    }
+}
+
+fn watch_for_next_level(
+    mut cmd: Commands,
+    mut ev_next_level: EventReader<NextLevelEvent>,
+    mut level_selection: ResMut<LevelSelection>,
+    mut level_index: ResMut<LevelIndex>,
+) {
+    for ev in ev_next_level.read() {
+        level_index.0 += 1;
+        *level_selection = LevelSelection::Identifier(LEVEL_NAMES[level_index.0].to_string());
     }
 }
