@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::utils::info;
 use bevy_easings::EasingsPlugin;
 use bevy_ecs_ldtk::assets::LdtkProject;
 use bevy_ecs_ldtk::LdtkPlugin;

@@ -3,3 +3,5 @@
 - camera start sometimes doesn't work due to ordering issues
 
 - start menu should start at level 0
+
+- snarky defeat

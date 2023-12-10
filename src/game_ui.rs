@@ -28,6 +28,8 @@ impl Plugin for GameUiPlugin {
             )
             .add_systems(OnEnter(LevelState::Win), instanciate_win_screen)
             .add_systems(OnExit(LevelState::Win), destroy_win_screen)
+            .add_systems(OnEnter(LevelState::Loss), instanciate_loss_screen)
+            .add_systems(OnExit(LevelState::Loss), destroy_loss_screen)
             .add_systems(
                 Update,
                 (
@@ -118,10 +120,11 @@ fn maybe_disable_next_level(
 fn maybe_disable_previous_level(
     mut cmd: Commands,
     level_index: Res<LevelIndex>,
+    level_count: Res<LevelCount>,
     q_next_level_button: Query<Entity, With<PreviousLevelButton>>,
     mut q_interaction: Query<&mut Interaction, With<Button>>,
 ) {
-    if level_index.is_changed() {
+    if level_index.is_changed() || level_count.is_changed() {
         if let Ok(entity) = q_next_level_button.get_single() {
             if level_index.0 == 0 {
                 cmd.entity(entity).try_insert(ButtonDisabled);
@@ -672,6 +675,165 @@ fn instanciate_win_screen(
                         });
                     });
                 }
+            });
+        });
+    });
+}
+
+#[derive(Component)]
+struct LossScreen;
+
+fn destroy_loss_screen(mut cmd: Commands, q_loss_screen: Query<Entity, With<LossScreen>>) {
+    for entity in &q_loss_screen {
+        info!("Destroying loss screen");
+        cmd.entity(entity).despawn_recursive();
+    }
+}
+
+fn instanciate_loss_screen(mut cmd: Commands, asset_server: Res<AssetServer>) {
+    info!("instanciating loss screen");
+    cmd.spawn((
+        LossScreen,
+        NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                padding: UiRect {
+                    top: Val::Vh(2.),
+                    left: Val::Vh(2.),
+                    right: Val::Vh(2.),
+                    bottom: Val::Vh(2.),
+                },
+                ..Default::default()
+            },
+            // background_color: Color::GREEN.into(),
+            ..Default::default()
+        },
+    ))
+    .with_children(|cmd| {
+        cmd.spawn(NodeBundle {
+            style: Style {
+                flex_direction: FlexDirection::Column,
+                padding: UiRect {
+                    top: Val::Vh(2.),
+                    left: Val::Vh(2.),
+                    right: Val::Vh(2.),
+                    bottom: Val::Vh(2.),
+                },
+                ..Default::default()
+            },
+            background_color: Color::rgba(0.0, 0.0, 0.0, 0.8).into(),
+            ..Default::default()
+        })
+        .with_children(|cmd| {
+            cmd.spawn(NodeBundle {
+                style: Style {
+                    padding: UiRect {
+                        top: Val::Vh(2.),
+                        left: Val::Vh(20.),
+                        right: Val::Vh(20.),
+                        bottom: Val::Vh(2.),
+                    },
+                    ..Default::default()
+                },
+                background_color: Color::rgba(0.0, 0.0, 0.0, 0.8).into(),
+                ..Default::default()
+            })
+            .with_children(|cmd| {
+                let text_bundle = TextBundle::from_section(
+                    "Defeat...",
+                    TextStyle {
+                        font: asset_server.load("GeoFont-Bold.otf"),
+                        font_size: 48.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                    },
+                );
+                cmd.spawn(text_bundle);
+            });
+            cmd.spawn(NodeBundle {
+                style: Style {
+                    padding: UiRect {
+                        top: Val::Vh(2.),
+                        left: Val::Vh(20.),
+                        right: Val::Vh(20.),
+                        bottom: Val::Vh(2.),
+                    },
+                    flex_direction: FlexDirection::Row,
+                    justify_content: JustifyContent::Center,
+                    ..Default::default()
+                },
+                background_color: Color::rgba(0.0, 0.0, 0.0, 0.8).into(),
+                ..Default::default()
+            })
+            .with_children(|cmd| {
+                cmd.spawn((
+                    MainMenuButton,
+                    ButtonState::None,
+                    ButtonType::MainMenu,
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::VMin(7.),
+                            height: Val::VMin(7.),
+                            border: UiRect::all(Val::Px(5.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..Default::default()
+                        },
+                        border_color: BorderColor(Color::BLACK),
+                        background_color: NORMAL_BUTTON.into(),
+                        ..Default::default()
+                    },
+                ))
+                .with_children(|cmd| {
+                    cmd.spawn(ImageBundle {
+                        image: UiImage {
+                            texture: asset_server.load("main_menu_button.png"),
+                            ..Default::default()
+                        },
+                        style: Style {
+                            width: Val::Percent(100.),
+                            height: Val::Percent(100.),
+                            align_items: AlignItems::Center,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    });
+                });
+                cmd.spawn((
+                    ButtonState::None,
+                    ButtonType::Reset,
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::VMin(7.),
+                            height: Val::VMin(7.),
+                            border: UiRect::all(Val::Px(5.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..Default::default()
+                        },
+                        border_color: BorderColor(Color::BLACK),
+                        background_color: NORMAL_BUTTON.into(),
+                        ..Default::default()
+                    },
+                ))
+                .with_children(|cmd| {
+                    cmd.spawn(ImageBundle {
+                        image: UiImage {
+                            texture: asset_server.load("reset_button.png"),
+                            ..Default::default()
+                        },
+                        style: Style {
+                            width: Val::Percent(100.),
+                            height: Val::Percent(100.),
+                            align_items: AlignItems::Center,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    });
+                });
             });
         });
     });

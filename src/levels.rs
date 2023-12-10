@@ -349,10 +349,15 @@ fn watch_for_reset(
     mut cmd: Commands,
     mut ev_reset_level: EventReader<ResetLevelEvent>,
     q_level: Query<Entity, With<LevelIid>>,
+    mut level_index: ResMut<LevelIndex>,
 ) {
     for _ev in ev_reset_level.read() {
         if let Ok(e_level) = q_level.get_single() {
-            cmd.entity(e_level).try_insert(Respawn);
+            cmd.entity(e_level)
+                .remove::<Defeat>()
+                .remove::<Victory>()
+                .try_insert(Respawn);
+            level_index.set_changed();
         }
     }
 }
