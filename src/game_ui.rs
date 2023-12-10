@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     arrow::DraggedArrow,
-    game::GameState,
+    game::{GameState, LevelState},
     game_camera::MouseWorldCoords,
     inventory::Inventory,
     levels::{LevelCount, LevelIndex},
@@ -16,8 +16,18 @@ impl Plugin for GameUiPlugin {
         app.add_event::<ResetLevelEvent>()
             .add_event::<ChangeLevelEvent>()
             .add_event::<MainMenuEvent>()
-            .add_systems(OnEnter(GameState::Playing), instanciate)
-            .add_systems(OnExit(GameState::Playing), destroy)
+            // .add_systems(OnEnter(GameState::Playing), instanciate)
+            // .add_systems(OnExit(GameState::Playing), destroy)
+            .add_systems(
+                OnEnter(LevelState::Playing),
+                instanciate_ui.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                OnExit(LevelState::Playing),
+                destroy_ui.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(OnEnter(LevelState::Win), instanciate_win_screen)
+            .add_systems(OnExit(LevelState::Win), destroy_win_screen)
             .add_systems(
                 Update,
                 (
@@ -212,13 +222,15 @@ fn button_system(
     }
 }
 
-fn destroy(mut cmd: Commands, q_game_ui: Query<Entity, With<GameUi>>) {
+fn destroy_ui(mut cmd: Commands, q_game_ui: Query<Entity, With<GameUi>>) {
     for entity in &q_game_ui {
+        info!("Destroying game UI");
         cmd.entity(entity).despawn_recursive();
     }
 }
 
-fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
+fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
+    info!("Instanciating game UI");
     cmd.spawn((
         GameUi,
         NodeBundle {
@@ -492,4 +504,175 @@ fn update_arrow_button(
             text.sections[0].value = inventory.arrow_count.to_string();
         }
     }
+}
+
+#[derive(Component)]
+struct WinScreen;
+
+fn destroy_win_screen(mut cmd: Commands, q_win_screen: Query<Entity, With<WinScreen>>) {
+    for entity in &q_win_screen {
+        info!("Destroying win screen");
+        cmd.entity(entity).despawn_recursive();
+    }
+}
+
+fn instanciate_win_screen(
+    mut cmd: Commands,
+    asset_server: Res<AssetServer>,
+    level_count: Res<LevelCount>,
+    level_index: Res<LevelIndex>,
+) {
+    info!("instanciating win screen");
+    cmd.spawn((
+        WinScreen,
+        NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                padding: UiRect {
+                    top: Val::Vh(2.),
+                    left: Val::Vh(2.),
+                    right: Val::Vh(2.),
+                    bottom: Val::Vh(2.),
+                },
+                ..Default::default()
+            },
+            // background_color: Color::GREEN.into(),
+            ..Default::default()
+        },
+    ))
+    .with_children(|cmd| {
+        cmd.spawn(NodeBundle {
+            style: Style {
+                flex_direction: FlexDirection::Column,
+                padding: UiRect {
+                    top: Val::Vh(2.),
+                    left: Val::Vh(2.),
+                    right: Val::Vh(2.),
+                    bottom: Val::Vh(2.),
+                },
+                ..Default::default()
+            },
+            background_color: Color::rgba(0.0, 0.0, 0.0, 0.8).into(),
+            ..Default::default()
+        })
+        .with_children(|cmd| {
+            cmd.spawn(NodeBundle {
+                style: Style {
+                    padding: UiRect {
+                        top: Val::Vh(2.),
+                        left: Val::Vh(20.),
+                        right: Val::Vh(20.),
+                        bottom: Val::Vh(2.),
+                    },
+                    ..Default::default()
+                },
+                background_color: Color::rgba(0.0, 0.0, 0.0, 0.8).into(),
+                ..Default::default()
+            })
+            .with_children(|cmd| {
+                let text_bundle = TextBundle::from_section(
+                    if level_index.0 + 1 >= level_count.0 {
+                        "You won the game !"
+                    } else {
+                        "Victory !"
+                    },
+                    TextStyle {
+                        font: asset_server.load("GeoFont-Bold.otf"),
+                        font_size: 48.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                    },
+                );
+                cmd.spawn(text_bundle);
+            });
+            cmd.spawn(NodeBundle {
+                style: Style {
+                    padding: UiRect {
+                        top: Val::Vh(2.),
+                        left: Val::Vh(20.),
+                        right: Val::Vh(20.),
+                        bottom: Val::Vh(2.),
+                    },
+                    flex_direction: FlexDirection::Row,
+                    justify_content: JustifyContent::Center,
+                    ..Default::default()
+                },
+                background_color: Color::rgba(0.0, 0.0, 0.0, 0.8).into(),
+                ..Default::default()
+            })
+            .with_children(|cmd| {
+                cmd.spawn((
+                    MainMenuButton,
+                    ButtonState::None,
+                    ButtonType::MainMenu,
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::VMin(7.),
+                            height: Val::VMin(7.),
+                            border: UiRect::all(Val::Px(5.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..Default::default()
+                        },
+                        border_color: BorderColor(Color::BLACK),
+                        background_color: NORMAL_BUTTON.into(),
+                        ..Default::default()
+                    },
+                ))
+                .with_children(|cmd| {
+                    cmd.spawn(ImageBundle {
+                        image: UiImage {
+                            texture: asset_server.load("main_menu_button.png"),
+                            ..Default::default()
+                        },
+                        style: Style {
+                            width: Val::Percent(100.),
+                            height: Val::Percent(100.),
+                            align_items: AlignItems::Center,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    });
+                });
+                if level_index.0 + 1 < level_count.0 {
+                    cmd.spawn((
+                        NextLevelButton,
+                        ButtonState::None,
+                        ButtonType::NextLevel,
+                        ButtonBundle {
+                            style: Style {
+                                width: Val::VMin(7.),
+                                height: Val::VMin(7.),
+                                border: UiRect::all(Val::Px(5.0)),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                ..Default::default()
+                            },
+                            border_color: BorderColor(Color::BLACK),
+                            background_color: NORMAL_BUTTON.into(),
+                            ..Default::default()
+                        },
+                    ))
+                    .with_children(|cmd| {
+                        cmd.spawn(ImageBundle {
+                            image: UiImage {
+                                texture: asset_server.load("next_level_button.png"),
+                                ..Default::default()
+                            },
+                            style: Style {
+                                width: Val::Percent(100.),
+                                height: Val::Percent(100.),
+                                align_items: AlignItems::Center,
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        });
+                    });
+                }
+            });
+        });
+    });
 }

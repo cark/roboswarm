@@ -33,7 +33,8 @@ pub enum GameState {
 #[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum LevelState {
     #[default]
-    PLaying,
+    WaitingLevelSpawn,
+    Playing,
     Win,
     Loss,
 }
@@ -82,11 +83,13 @@ fn watch_main_menu_event(
     //project_assets: Res<Assets<LdtkProject>>,
     q_project: Query<Entity, With<Handle<LdtkProject>>>,
     mut next_state: ResMut<NextState<GameState>>,
+    mut next_level_state: ResMut<NextState<LevelState>>,
 ) {
     for _ev in ev_main_menu.read() {
         if let Ok(entity) = q_project.get_single() {
             cmd.entity(entity).despawn_recursive();
             next_state.0 = Some(GameState::Menu);
+            next_level_state.0 = Some(LevelState::WaitingLevelSpawn);
         }
     }
 }

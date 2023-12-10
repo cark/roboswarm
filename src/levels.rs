@@ -1,5 +1,5 @@
 use crate::arrow::EnemyArrowBundle;
-use crate::game::GameState;
+use crate::game::{GameState, LevelState};
 use crate::game_camera::{CameraStartBundle, CameraTargetPos};
 use crate::game_ui::{ChangeLevelEvent, ResetLevelEvent};
 use crate::inventory::Inventory;
@@ -59,6 +59,41 @@ impl Plugin for LevelsPlugin {
             .register_ldtk_entity::<EnemyPortalBundle>("EnemyPortal")
             .register_ldtk_entity::<EnemyArrowBundle>("EnemyArrow")
             .register_ldtk_entity::<CameraStartBundle>("CameraStart");
+        #[cfg(debug_assertions)]
+        app.add_systems(Update, bleh.run_if(in_state(GameState::Playing)));
+    }
+}
+
+fn bleh(
+    mut cmd: Commands,
+    q_portal: Query<(Entity, &Team), With<Portal>>,
+    keys: Res<Input<KeyCode>>,
+    mut ev_reset_level: EventWriter<ResetLevelEvent>,
+    q_level: Query<Entity, With<LevelIid>>,
+    mut next_level_state: ResMut<NextState<LevelState>>,
+) {
+    if keys.just_pressed(KeyCode::W) {
+        for (entity, team) in &q_portal {
+            if *team == Team::Enemy {
+                cmd.entity(entity).despawn_recursive();
+            }
+        }
+    }
+    if keys.just_pressed(KeyCode::L) {
+        for (entity, team) in &q_portal {
+            if *team == Team::Player {
+                cmd.entity(entity).despawn_recursive();
+            }
+        }
+    }
+    if keys.just_pressed(KeyCode::R) {
+        ev_reset_level.send(ResetLevelEvent);
+        for entity in &q_level {
+            println!("bleh");
+            next_level_state.0 = Some(LevelState::Playing);
+            cmd.entity(entity).remove::<Victory>().remove::<Defeat>();
+        }
+        //cmd.entity(e_level).remove::<Victory>().remove::<Loss>();
     }
 }
 
@@ -86,7 +121,7 @@ pub struct Victory;
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct Loss;
+pub struct Defeat;
 
 #[derive(Resource, Default)]
 struct LdtkAsset(Option<Handle<LdtkProject>>);
@@ -183,6 +218,7 @@ pub fn level_changed(
     mut level_size: ResMut<LevelSize>,
     mut inventory: ResMut<Inventory>,
     mut level_count: ResMut<LevelCount>,
+    mut next_level_state: ResMut<NextState<LevelState>>,
 ) {
     for level_event in level_events.read() {
         info(level_event);
@@ -209,6 +245,7 @@ pub fn level_changed(
             }
             LevelEvent::Transformed(_) => {
                 ev_level_loaded.send(LevelLoadedEvent);
+                next_level_state.0 = Some(LevelState::Playing);
             }
             _ => {}
         }
@@ -268,32 +305,42 @@ fn spawn_wall_collisions(
 
 fn check_victory(
     mut cmd: Commands,
-    q_level: Query<Entity, (With<LevelIid>, Without<Victory>, Without<Loss>)>,
+    q_level: Query<Entity, (With<LevelIid>, Without<Victory>, Without<Defeat>)>,
     q_portal: Query<&Team, With<Portal>>,
     level_index: Res<LevelIndex>,
     mut max_attainable_level: ResMut<MaxAttainableLevel>,
-    //    level_state:
+    mut next_level_state: ResMut<NextState<LevelState>>,
+    level_state: Res<State<LevelState>>,
 ) {
-    for e_level in &q_level {
-        let mut player_portal_count = 0;
-        let mut enemy_portal_count = 0;
-        for team in &q_portal {
-            match team {
-                Team::Player => player_portal_count += 1,
-                Team::Enemy => enemy_portal_count += 1,
+    if *level_state == LevelState::Playing {
+        for e_level in &q_level {
+            let mut player_portal_count = 0;
+            let mut enemy_portal_count = 0;
+            for team in &q_portal {
+                match team {
+                    Team::Player => player_portal_count += 1,
+                    Team::Enemy => enemy_portal_count += 1,
+                }
             }
-        }
-        match (player_portal_count, enemy_portal_count) {
-            (0, _) => {
-                println!("loss in level {}", level_index.0);
-                cmd.entity(e_level).insert(Loss);
+            match (player_portal_count, enemy_portal_count) {
+                (0, _) => {
+                    info!("loss in level {}", level_index.0);
+                    cmd.entity(e_level).insert(Defeat);
+                    next_level_state.0 = Some(LevelState::Loss);
+                }
+                (_, 0) => {
+                    info!("victory on level {}", level_index.0);
+                    cmd.entity(e_level).insert(Victory);
+                    max_attainable_level.0 = level_index.0 + 1;
+                    next_level_state.0 = Some(LevelState::Win);
+                }
+                _ => {
+                    // if *level_state != LevelState::Playing {
+                    //     println!("yoh");
+                    //     next_level_state.0 = Some(LevelState::Playing);
+                    // }
+                }
             }
-            (_, 0) => {
-                info!("victory on level {}", level_index.0);
-                cmd.entity(e_level).insert(Victory);
-                max_attainable_level.0 = level_index.0 + 1;
-            }
-            _ => {}
         }
     }
 }
