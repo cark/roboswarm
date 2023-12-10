@@ -35,8 +35,9 @@ struct ArrowButton;
 
 #[derive(Component)]
 enum ButtonType {
-    ArrowButton,
-    ResetButton,
+    Arrow,
+    Reset,
+    NextLevel,
 }
 
 #[derive(Component)]
@@ -83,14 +84,15 @@ fn button_system(
                 //text.style.color = Color::rgb(0.9, 0.9, 0.9);
                 match *button_state {
                     ButtonState::Down => match button_type {
-                        ButtonType::ArrowButton => {
+                        ButtonType::Arrow => {
                             if inventory.arrow_count > 0 && *mouse_state != MouseState::Dragging {
                                 cmd.spawn((Drag, DragPos(mouse_pos.0.unwrap()), DraggedArrow));
                             }
                         }
-                        ButtonType::ResetButton => {
+                        ButtonType::Reset => {
                             ev_reset_level.send(ResetLevelEvent);
                         }
+                        ButtonType::NextLevel => todo!(),
                     },
                     _ => *button_state = ButtonState::None,
                 }
@@ -143,7 +145,7 @@ fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
         .with_children(|cmd| {
             cmd.spawn((
                 ButtonState::None,
-                ButtonType::ResetButton,
+                ButtonType::Reset,
                 ButtonBundle {
                     style: Style {
                         width: Val::VMin(7.),
@@ -165,12 +167,41 @@ fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
                         ..Default::default()
                     },
                     style: Style {
-                        // width: Val::VMin(0.8),
-                        // height: Val::VMin(0.8),
                         width: Val::Percent(100.),
                         height: Val::Percent(100.),
                         align_items: AlignItems::Center,
-                        //display: Display::Flex,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            });
+            cmd.spawn((
+                ButtonState::None,
+                ButtonType::NextLevel,
+                ButtonBundle {
+                    style: Style {
+                        width: Val::VMin(7.),
+                        height: Val::VMin(7.),
+                        border: UiRect::all(Val::Px(5.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..Default::default()
+                    },
+                    border_color: BorderColor(Color::BLACK),
+                    background_color: NORMAL_BUTTON.into(),
+                    ..Default::default()
+                },
+            ))
+            .with_children(|cmd| {
+                cmd.spawn(ImageBundle {
+                    image: UiImage {
+                        texture: asset_server.load("next_level_button.png"),
+                        ..Default::default()
+                    },
+                    style: Style {
+                        width: Val::Percent(100.),
+                        height: Val::Percent(100.),
+                        align_items: AlignItems::Center,
                         ..Default::default()
                     },
                     ..Default::default()
@@ -217,7 +248,7 @@ fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
                     },
                     ButtonState::None,
                     ArrowButton,
-                    ButtonType::ArrowButton,
+                    ButtonType::Arrow,
                 ))
                 .with_children(|cmd| {
                     cmd.spawn(ImageBundle {

@@ -5,6 +5,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_easings::{Ease, EaseFunction, EaseMethod, EasingType};
+use bevy_ecs_ldtk::LevelIid;
 
 use crate::{game::GameState, load::TextureAssets};
 use rand::prelude::*;
@@ -82,35 +83,46 @@ struct Explosion {
     //duration : Duration,
 }
 
-fn watch_for_explosion(mut cmd: Commands, mut ev_explosion: EventReader<ExplosionEvent>) {
+fn watch_for_explosion(
+    mut cmd: Commands,
+    mut ev_explosion: EventReader<ExplosionEvent>,
+    q_level: Query<Entity, With<LevelIid>>,
+) {
     for ev in ev_explosion.read() {
-        let particle_interval =
-            Duration::from_secs_f32(ev.duration.as_secs_f32() / ev.particle_count as f32);
-        let mut next_particle = Timer::new(particle_interval, TimerMode::Once);
-        next_particle.tick(particle_interval);
-        cmd.spawn((
-            TransformBundle::from_transform(Transform::from_translation(ev.location.extend(3.0))),
-            Explosion {
-                lifetime: Timer::new(ev.duration, TimerMode::Once),
-                next_particle,
-                colors: ev.colors,
-                spread: ev.spread,
-                particle_radius: ev.particle_radius,
-                particle_speed: ev.particle_speed,
-                particle_duration: ev.particle_duration,
-                particle_count: ev.particle_count,
-            },
-        ));
+        if let Ok(e_level) = q_level.get_single() {
+            let particle_interval =
+                Duration::from_secs_f32(ev.duration.as_secs_f32() / ev.particle_count as f32);
+            let mut next_particle = Timer::new(particle_interval, TimerMode::Once);
+            next_particle.tick(particle_interval);
+            let e_explosion = cmd
+                .spawn((
+                    TransformBundle::from_transform(Transform::from_translation(
+                        ev.location.extend(10.0),
+                    )),
+                    Explosion {
+                        lifetime: Timer::new(ev.duration, TimerMode::Once),
+                        next_particle,
+                        colors: ev.colors,
+                        spread: ev.spread,
+                        particle_radius: ev.particle_radius,
+                        particle_speed: ev.particle_speed,
+                        particle_duration: ev.particle_duration,
+                        particle_count: ev.particle_count,
+                    },
+                ))
+                .id();
+            cmd.entity(e_level).add_child(e_explosion);
+        }
     }
 }
 
 fn run_explosion(
     mut cmd: Commands,
-    mut q_explosion: Query<(Entity, &GlobalTransform, &mut Explosion)>,
+    mut q_explosion: Query<(Entity, &Transform, &Parent, &mut Explosion)>,
     time: Res<Time>,
     textures: Res<TextureAssets>,
 ) {
-    for (e_explosion, gtr, mut explosion) in &mut q_explosion {
+    for (e_explosion, tr, parent, mut explosion) in &mut q_explosion {
         explosion.lifetime.tick(time.delta());
         explosion.next_particle.tick(time.delta());
         if explosion.next_particle.finished() {
@@ -119,8 +131,9 @@ fn run_explosion(
             let delta_pos = Quat::from_rotation_z(rng.gen_range(0.0..2.0 * PI))
                 .mul_vec3(vec3(1.0, 0.0, 0.0) * rng.gen_range(0.0..explosion.spread));
             spawn_particle(
+                parent.get(),
                 &mut cmd,
-                gtr.translation() + delta_pos,
+                tr.translation + delta_pos,
                 &textures,
                 &explosion.colors,
                 explosion.particle_radius,
@@ -135,6 +148,7 @@ fn run_explosion(
 }
 
 fn spawn_particle(
+    parent: Entity,
     cmd: &mut Commands,
     pos: Vec3,
     textures: &Res<TextureAssets>,
@@ -145,48 +159,51 @@ fn spawn_particle(
 ) {
     let size = Some(Vec2::splat(radius * 2.));
     let ease_step_time = Duration::from_secs_f32(duration.as_secs_f32() / 2.0);
-    cmd.spawn((
-        ExplosionParticle {
-            lifetime: Timer::new(duration, TimerMode::Once),
-            speed,
-        },
-        SpriteBundle {
-            transform: Transform::from_translation(pos),
-            texture: textures.explosion_particle.clone(),
-            sprite: Sprite {
-                custom_size: Some(vec2(0.0, 0.0)),
+    let e_particle = cmd
+        .spawn((
+            ExplosionParticle {
+                lifetime: Timer::new(duration, TimerMode::Once),
+                speed,
+            },
+            SpriteBundle {
+                transform: Transform::from_translation(pos),
+                texture: textures.explosion_particle.clone(),
+                sprite: Sprite {
+                    custom_size: Some(vec2(0.0, 0.0)),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
-            ..Default::default()
-        },
-        Sprite {
-            custom_size: size,
-            color: colors[0],
-            ..Default::default()
-        }
-        .ease_to(
             Sprite {
-                custom_size: size.map(|v| v / 3.0),
-                color: colors[1],
+                custom_size: size,
+                color: colors[0],
                 ..Default::default()
-            },
-            EaseMethod::Linear,
-            EasingType::Once {
-                duration: ease_step_time,
-            },
-        )
-        .ease_to(
-            Sprite {
-                custom_size: Some(vec2(0.0, 0.0)),
-                color: colors[2],
-                ..Default::default()
-            },
-            EaseMethod::Linear,
-            EasingType::Once {
-                duration: ease_step_time,
-            },
-        ),
-    ));
+            }
+            .ease_to(
+                Sprite {
+                    custom_size: size.map(|v| v / 3.0),
+                    color: colors[1],
+                    ..Default::default()
+                },
+                EaseMethod::Linear,
+                EasingType::Once {
+                    duration: ease_step_time,
+                },
+            )
+            .ease_to(
+                Sprite {
+                    custom_size: Some(vec2(0.0, 0.0)),
+                    color: colors[2],
+                    ..Default::default()
+                },
+                EaseMethod::Linear,
+                EasingType::Once {
+                    duration: ease_step_time,
+                },
+            ),
+        ))
+        .id();
+    cmd.entity(parent).add_child(e_particle);
 }
 
 fn particle_life(

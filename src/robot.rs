@@ -7,6 +7,7 @@ use bevy::{
     time::Stopwatch,
 };
 
+use bevy_ecs_ldtk::LevelIid;
 use bevy_rapier2d::{prelude::*, rapier::pipeline::DebugRenderObject};
 
 use crate::{
@@ -146,169 +147,159 @@ fn check_spawn_robot(
     mut cmd: Commands,
     mut ev_spawn_robot: EventReader<SpawnRobotEvent>,
     assets: Res<TextureAssets>,
+    q_level: Query<Entity, With<LevelIid>>,
 ) {
-    for ev in ev_spawn_robot.read() {
-        //info!("spawn robot event read {:?}", ev.pos);
-        let pos = ev.pos.extend(1.0);
-        // info!("team: {}", ev.team as u32);
-        cmd.spawn((
-            ev.team,
-            Robot,
-            Life {
-                max_hp: ROBOT_START_HP,
-                curr_hp: ROBOT_START_HP,
-            },
-            EngineDir::default(),
-            (
-                RigidBody::Dynamic,
-                Collider::ball(ROBOT_COLLIDER_RADIUS),
-                AdditionalMassProperties::Mass(ROBOT_COLLIDER_MASS),
-                ExternalForce {
-                    force: vec2(0.0, 0.0),
-                    torque: 0.0,
-                },
-                ExternalImpulse::default(),
-                Damping {
-                    linear_damping: ROBOT_DAMPING,
-                    angular_damping: 0.0,
-                },
-                LockedAxes::ROTATION_LOCKED,
-                Friction {
-                    coefficient: 0.0,
-                    ..Default::default()
-                },
-                Restitution {
-                    coefficient: 0.5,
-                    ..Default::default()
-                },
-                match ev.team {
-                    Team::Player => coll_groups(
-                        ObjectGroup::PLAYER_ROBOT,
-                        ObjectGroup::ENEMY_ROBOT
-                            | ObjectGroup::WALL
-                            | ObjectGroup::PLAYER_PORTAL_SENSOR
-                            | ObjectGroup::PLAYER_ROBOT
-                            | ObjectGroup::PLAYER_ARROW_SENSOR
-                            | ObjectGroup::ROBOT_STEERING_SENSOR
-                            | ObjectGroup::ENEMY_TARGETING_SENSOR
-                            | ObjectGroup::ENEMY_BULLET
-                            | ObjectGroup::ENEMY_PORTAL,
-                    ),
-                    Team::Enemy => coll_groups(
-                        ObjectGroup::ENEMY_ROBOT,
-                        ObjectGroup::PLAYER_ROBOT
-                            | ObjectGroup::WALL
-                            | ObjectGroup::ENEMY_PORTAL_SENSOR
-                            | ObjectGroup::ENEMY_ROBOT
-                            | ObjectGroup::ENEMY_ARROW_SENSOR
-                            | ObjectGroup::ROBOT_STEERING_SENSOR
-                            | ObjectGroup::PLAYER_TARGETING_SENSOR
-                            | ObjectGroup::PLAYER_BULLET
-                            | ObjectGroup::PLAYER_PORTAL,
-                    ),
-                },
-            ),
-            // coll_groups(
-            //     ev.team.to_group() | ObjectGroup::ROBOT,
-            //     ev.team.to_group()
-            //         | ObjectGroup::PORTAL_SENSOR
-            //         | ObjectGroup::WALL
-            //         | ObjectGroup::ROBOT,
-            // ),
-            TransformBundle::from_transform(Transform::from_translation(pos)),
-            VisibilityBundle::default(),
-        ))
-        .with_children(|cmd| {
-            // cmd.spawn((
-            //     RobotSteeringSensor,
-            //     Collider::ball(ROBOT_STEERING_SENSOR_RADIUS),
-            //     coll_groups(
-            //         ObjectGroup::STEERING_SENSOR,
-            //         ObjectGroup::WALL | ObjectGroup::ROBOT,
-            //     ),
-            //     ActiveEvents::COLLISION_EVENTS,
-            //     TransformBundle::default(),
-            //     Sensor,
-            // ));
-            cmd.spawn((
-                RobotBody,
-                SpriteBundle {
-                    texture: assets.robot_body.clone(),
-                    transform: Transform::from_translation(vec3(0., 0., 1.)),
-                    sprite: Sprite {
-                        color: ev.team.tint(),
-                        ..Default::default()
+    if let Ok(e_level) = q_level.get_single() {
+        for ev in ev_spawn_robot.read() {
+            //info!("spawn robot event read {:?}", ev.pos);
+            let pos = ev.pos.extend(4.0);
+            // info!("team: {}", ev.team as u32);
+            let robot_id = cmd
+                .spawn((
+                    ev.team,
+                    Robot,
+                    Life {
+                        max_hp: ROBOT_START_HP,
+                        curr_hp: ROBOT_START_HP,
                     },
-                    ..Default::default()
-                },
-            ));
-            cmd.spawn((
-                Turret,
-                SpriteBundle {
-                    texture: assets.robot_turret.clone(),
-                    transform: Transform::from_translation(vec3(0.0, 0.0, 1.2)),
-                    ..Default::default()
-                },
-            ));
-            cmd.spawn((
-                Canon,
-                CanonCooldown({
-                    let mut t = Timer::new(CANON_COOLDOWN, TimerMode::Repeating);
-                    t.tick(CANON_COOLDOWN);
-                    t
-                }),
-                SpriteBundle {
-                    texture: assets.robot_canon.clone(),
-                    transform: Transform::from_translation(vec3(0.0, 0.0, 1.1)),
-                    ..Default::default()
-                },
-                CanonTarget::default(),
-                ev.team,
-            ))
-            .with_children(|cmd| {
-                cmd.spawn((
-                    NuzzleFlash({
-                        let mut result = Timer::new(Duration::from_millis(100), TimerMode::Once);
-                        result.set_elapsed(Duration::from_millis(100));
-                        result
-                    }),
-                    SpriteBundle {
-                        texture: assets.nuzzle_flash.clone(),
-                        transform: Transform::from_xyz(8., 0., 2.).with_scale(Vec3::splat(0.5)),
-                        visibility: Visibility::Hidden,
-                        ..Default::default()
-                    },
-                ));
-            });
-            cmd.spawn((
-                LastPos::default(),
-                SpriteBundle {
-                    texture: assets.robot_train.clone(),
-                    transform: Transform::from_translation(vec3(0.0, 0.0, 0.9)),
-                    ..Default::default()
-                },
-                WheelTrain,
-            ))
-            .with_children(|cmd| {
-                for wp in WHEEL_POSITIONS {
+                    EngineDir::default(),
+                    (
+                        RigidBody::Dynamic,
+                        Collider::ball(ROBOT_COLLIDER_RADIUS),
+                        AdditionalMassProperties::Mass(ROBOT_COLLIDER_MASS),
+                        ExternalForce {
+                            force: vec2(0.0, 0.0),
+                            torque: 0.0,
+                        },
+                        ExternalImpulse::default(),
+                        Damping {
+                            linear_damping: ROBOT_DAMPING,
+                            angular_damping: 0.0,
+                        },
+                        LockedAxes::ROTATION_LOCKED,
+                        Friction {
+                            coefficient: 0.0,
+                            ..Default::default()
+                        },
+                        Restitution {
+                            coefficient: 0.5,
+                            ..Default::default()
+                        },
+                        match ev.team {
+                            Team::Player => coll_groups(
+                                ObjectGroup::PLAYER_ROBOT,
+                                ObjectGroup::ENEMY_ROBOT
+                                    | ObjectGroup::WALL
+                                    | ObjectGroup::PLAYER_PORTAL_SENSOR
+                                    | ObjectGroup::PLAYER_ROBOT
+                                    | ObjectGroup::PLAYER_ARROW_SENSOR
+                                    | ObjectGroup::ROBOT_STEERING_SENSOR
+                                    | ObjectGroup::ENEMY_TARGETING_SENSOR
+                                    | ObjectGroup::ENEMY_BULLET
+                                    | ObjectGroup::ENEMY_PORTAL,
+                            ),
+                            Team::Enemy => coll_groups(
+                                ObjectGroup::ENEMY_ROBOT,
+                                ObjectGroup::PLAYER_ROBOT
+                                    | ObjectGroup::WALL
+                                    | ObjectGroup::ENEMY_PORTAL_SENSOR
+                                    | ObjectGroup::ENEMY_ROBOT
+                                    | ObjectGroup::ENEMY_ARROW_SENSOR
+                                    | ObjectGroup::ROBOT_STEERING_SENSOR
+                                    | ObjectGroup::PLAYER_TARGETING_SENSOR
+                                    | ObjectGroup::PLAYER_BULLET
+                                    | ObjectGroup::PLAYER_PORTAL,
+                            ),
+                        },
+                    ),
+                    TransformBundle::from_transform(Transform::from_translation(pos)),
+                    VisibilityBundle::default(),
+                ))
+                .with_children(|cmd| {
                     cmd.spawn((
-                        Wheel,
+                        RobotBody,
                         SpriteBundle {
-                            transform: Transform::from_translation(wp.extend(0.8)),
+                            texture: assets.robot_body.clone(),
+                            transform: Transform::from_translation(vec3(0., 0., 1.)),
                             sprite: Sprite {
-                                anchor: Anchor::Center,
-                                custom_size: Some(vec2(4.0, 2.0)),
-                                color: Color::BLACK,
+                                color: ev.team.tint(),
                                 ..Default::default()
                             },
                             ..Default::default()
                         },
-                        LastPos(wp),
-                        //LastPos::default(),
                     ));
-                }
-            });
-        });
+                    cmd.spawn((
+                        Turret,
+                        SpriteBundle {
+                            texture: assets.robot_turret.clone(),
+                            transform: Transform::from_translation(vec3(0.0, 0.0, 1.2)),
+                            ..Default::default()
+                        },
+                    ));
+                    cmd.spawn((
+                        Canon,
+                        CanonCooldown({
+                            let mut t = Timer::new(CANON_COOLDOWN, TimerMode::Repeating);
+                            t.tick(CANON_COOLDOWN);
+                            t
+                        }),
+                        SpriteBundle {
+                            texture: assets.robot_canon.clone(),
+                            transform: Transform::from_translation(vec3(0.0, 0.0, 1.1)),
+                            ..Default::default()
+                        },
+                        CanonTarget::default(),
+                        ev.team,
+                    ))
+                    .with_children(|cmd| {
+                        cmd.spawn((
+                            NuzzleFlash({
+                                let mut result =
+                                    Timer::new(Duration::from_millis(100), TimerMode::Once);
+                                result.set_elapsed(Duration::from_millis(100));
+                                result
+                            }),
+                            SpriteBundle {
+                                texture: assets.nuzzle_flash.clone(),
+                                transform: Transform::from_xyz(8., 0., 2.)
+                                    .with_scale(Vec3::splat(0.5)),
+                                visibility: Visibility::Hidden,
+                                ..Default::default()
+                            },
+                        ));
+                    });
+                    cmd.spawn((
+                        LastPos::default(),
+                        SpriteBundle {
+                            texture: assets.robot_train.clone(),
+                            transform: Transform::from_translation(vec3(0.0, 0.0, 0.9)),
+                            ..Default::default()
+                        },
+                        WheelTrain,
+                    ))
+                    .with_children(|cmd| {
+                        for wp in WHEEL_POSITIONS {
+                            cmd.spawn((
+                                Wheel,
+                                SpriteBundle {
+                                    transform: Transform::from_translation(wp.extend(0.8)),
+                                    sprite: Sprite {
+                                        anchor: Anchor::Center,
+                                        custom_size: Some(vec2(4.0, 2.0)),
+                                        color: Color::BLACK,
+                                        ..Default::default()
+                                    },
+                                    ..Default::default()
+                                },
+                                LastPos(wp),
+                                //LastPos::default(),
+                            ));
+                        }
+                    });
+                })
+                .id();
+            cmd.entity(e_level).add_child(robot_id);
+        }
     }
 }
 
@@ -348,11 +339,12 @@ fn fire_canon(
         ),
         With<Canon>,
     >,
-    robot_q: Query<(&GlobalTransform, Option<&RobotTarget>), With<Robot>>,
-    other_q: Query<&GlobalTransform>,
+    robot_q: Query<Option<&RobotTarget>, With<Robot>>,
+    other_q: Query<&GlobalTransform, &Transform>,
     mut nuzzle_q: Query<(&mut NuzzleFlash, &GlobalTransform)>,
     time: Res<Time>,
     mut ev_fire: EventWriter<FireEvent>,
+    q_level: Query<&GlobalTransform, With<LevelIid>>,
 ) {
     for (canon_gtr, parent, mut cooldown, children, team) in &mut canon_q {
         cooldown.0.tick(time.delta());
@@ -362,7 +354,7 @@ fn fire_canon(
             let ms = variance * rand::thread_rng().gen::<f32>() - variance / 2.;
             cooldown.0.set_duration(Duration::from_secs_f32(cd + ms));
             cooldown.0.reset();
-            if let Ok((_, Some(RobotTarget(e_other)))) = robot_q.get(parent.get()) {
+            if let Ok(Some(RobotTarget(e_other))) = robot_q.get(parent.get()) {
                 if let Ok(other_gtr) = other_q.get(*e_other) {
                     let firing_to = (other_gtr.translation() - canon_gtr.translation()).normalize();
                     let curr_dir = (canon_gtr.transform_point(vec3(1.0, 0.0, 0.0))
@@ -371,23 +363,22 @@ fn fire_canon(
                     let quat =
                         Quat::from_rotation_arc_2d(curr_dir.truncate(), firing_to.truncate());
                     let (_axis, angle) = quat.to_axis_angle();
-                    //let angle = firing_to.angle_between(curr_dir);
-                    //println!("beofreangle");
                     if angle.abs() < 0.1 {
-                        //println!("in angle");
                         for child in children.iter() {
                             if let Ok((mut nuzzle, nuzzle_gtr)) = nuzzle_q.get_mut(*child) {
-                                nuzzle.0.reset();
-                                //println!("fireevent");
-                                ev_fire.send(FireEvent {
-                                    from_pos: nuzzle_gtr.translation(),
-                                    to_target: other_gtr.translation(),
-                                    team: *team,
-                                });
+                                if let Ok(level_gtr) = q_level.get_single() {
+                                    nuzzle.0.reset();
+                                    ev_fire.send(FireEvent {
+                                        from_pos: nuzzle_gtr.translation()
+                                            - level_gtr.translation(),
+                                        to_target: other_gtr.translation()
+                                            - level_gtr.translation(),
+                                        team: *team,
+                                    });
+                                }
                             }
                         }
                         cooldown.0.reset();
-                        //println!("fire !");
                     }
                 }
             }
@@ -429,20 +420,6 @@ fn rotate_canon(
         }
     }
 }
-
-// fn set_engine_dir(
-//     mouse_coords: Res<MouseWorldCoords>,
-//     buttons: Res<Input<MouseButton>>,
-//     mut q_robot: Query<(&mut EngineDir, &GlobalTransform), With<Robot>>,
-// ) {
-//     if buttons.just_pressed(MouseButton::Left) {
-//         for (mut engine_dir, global_tr) in q_robot.iter_mut() {
-//             if let Some(mouse_coords) = mouse_coords.0 {
-//                 engine_dir.0 = (mouse_coords - global_tr.translation().xy()).normalize();
-//             }
-//         }
-//     }
-// }
 
 fn reset_robot_strength(mut q_robot: Query<&mut ExternalForce, With<Robot>>) {
     for mut external_force in q_robot.iter_mut() {
@@ -610,13 +587,13 @@ fn check_for_target(
 
 fn check_dead(
     mut cmd: Commands,
-    q_robot: Query<(Entity, &GlobalTransform), (With<Robot>, With<Dead>)>,
+    q_robot: Query<(Entity, &Transform), (With<Robot>, With<Dead>)>,
     mut ev_explosion: EventWriter<ExplosionEvent>,
 ) {
-    for (e_robot, gtr) in &q_robot {
+    for (e_robot, tr) in &q_robot {
         cmd.entity(e_robot).despawn_recursive();
         ev_explosion.send(ExplosionEvent {
-            location: gtr.translation().truncate(),
+            location: tr.translation.truncate(),
             ..Default::default()
         });
     }

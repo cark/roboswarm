@@ -107,39 +107,19 @@ pub struct Portal {
 #[derive(Component)]
 struct PortalSensor;
 
-// fn spawn_robot(
-//     mut q_portal: Query<(&GlobalTransform, &mut Portal, &Team)>,
-//     time: Res<Time>,
-//     mut ev_spawn_robot: EventWriter<SpawnRobotEvent>,
-// ) {
-//     for (gtr, mut portal, team) in &mut q_portal {
-//         portal.spawn_timer.tick(time.delta());
-//         if portal.spawn_timer.finished() {
-//             ev_spawn_robot.send(SpawnRobotEvent {
-//                 dir: portal.dir,
-//                 pos: gtr.translation().truncate(),
-//                 team: *team,
-//             });
-//             //crate::robot::spawn_robot(&mut cmd, &assets, gtr.translation());
-//             info("spawn!");
-//         }
-//     }
-// }
-
 fn check_portal_robot_spawn(
-    //mut ev_portal_robot_spawn: EventReader<PortalRobotSpawn>,
     mut ev_spawn_robot: EventWriter<SpawnRobotEvent>,
     mut ev_explosion: EventWriter<ExplosionEvent>,
-    mut q_portal: Query<(&mut Portal, &GlobalTransform, &Team)>,
+    mut q_portal: Query<(&mut Portal, &Transform, &Team)>,
     time: Res<Time>,
 ) {
-    for (mut portal, gtr, team) in &mut q_portal {
+    for (mut portal, tr, team) in &mut q_portal {
         portal.spawn_timer.tick(time.delta());
-        if portal.spawn_timer.finished() && gtr.translation() != Vec3::ZERO {
+        if portal.spawn_timer.finished() && tr.translation != Vec3::ZERO {
             portal.spawn_timer.reset();
             ev_spawn_robot.send(SpawnRobotEvent {
                 dir: portal.dir.normalize(),
-                pos: gtr.translation().truncate(),
+                pos: tr.translation.truncate(),
                 team: *team,
                 // team: Team::Enemy,
             });
@@ -149,7 +129,7 @@ fn check_portal_robot_spawn(
                     Color::rgba(0.9, 0.9, 0.9, 0.3),
                     Color::rgba(0.8, 0.8, 0.8, 0.0),
                 ],
-                location: gtr.translation().truncate(),
+                location: tr.translation.truncate(),
                 duration: Duration::from_secs_f32(0.3),
                 particle_radius: 8.,
                 spread: 12.,
@@ -269,13 +249,13 @@ fn check_sensor_collisions(
 
 fn check_dead(
     mut cmd: Commands,
-    q_portal: Query<(Entity, &GlobalTransform), (With<Portal>, With<Dead>)>,
+    q_portal: Query<(Entity, &Transform), (With<Portal>, With<Dead>)>,
     mut ev_explosion: EventWriter<ExplosionEvent>,
 ) {
-    for (e_portal, gtr) in &q_portal {
+    for (e_portal, tr) in &q_portal {
         cmd.entity(e_portal).despawn_recursive();
         ev_explosion.send(ExplosionEvent {
-            location: gtr.translation().truncate(),
+            location: tr.translation.truncate(),
             ..Default::default()
         });
     }
