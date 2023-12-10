@@ -1,7 +1,7 @@
 use crate::arrow::EnemyArrowBundle;
 use crate::game::GameState;
 use crate::game_camera::{CameraStartBundle, CameraTargetPos};
-use crate::game_ui::{NextLevelEvent, ResetLevelEvent};
+use crate::game_ui::{ChangeLevelEvent, ResetLevelEvent};
 use crate::inventory::Inventory;
 use crate::physics::{coll_groups, ObjectGroup, Team};
 use crate::portal::{EnemyPortalBundle, PlayerPortalBundle, Portal};
@@ -298,12 +298,15 @@ fn watch_for_reset(
 
 fn watch_for_next_level(
     mut cmd: Commands,
-    mut ev_next_level: EventReader<NextLevelEvent>,
+    mut ev_next_level: EventReader<ChangeLevelEvent>,
     mut level_selection: ResMut<LevelSelection>,
     mut level_index: ResMut<LevelIndex>,
 ) {
     for ev in ev_next_level.read() {
-        level_index.0 += 1;
+        match ev {
+            ChangeLevelEvent::Next => level_index.0 += 1,
+            ChangeLevelEvent::Previous => level_index.0 -= 1,
+        }
         *level_selection = LevelSelection::Identifier(LEVEL_NAMES[level_index.0].to_string());
     }
 }

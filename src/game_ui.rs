@@ -14,14 +14,14 @@ pub struct GameUiPlugin;
 impl Plugin for GameUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ResetLevelEvent>()
-            .add_event::<NextLevelEvent>()
+            .add_event::<ChangeLevelEvent>()
             .add_systems(OnEnter(GameState::Playing), instanciate)
             .add_systems(
                 Update,
                 (
                     button_system,
                     update_arrow_button,
-                    maybe_disable_next_level.after(button_system),
+                    (maybe_disable_previous_level, maybe_disable_next_level).after(button_system),
                 )
                     .run_if(in_state(GameState::Playing)),
             );
@@ -37,7 +37,27 @@ fn maybe_disable_next_level(
 ) {
     if level_index.is_changed() || level_count.is_changed() {
         if let Ok(entity) = q_next_level_button.get_single() {
-            if level_count.0 > 0 && level_index.0 >= level_count.0 - 1 {
+            if level_index.0 + 1 >= level_count.0 {
+                cmd.entity(entity).try_insert(ButtonDisabled);
+            } else {
+                cmd.entity(entity).remove::<ButtonDisabled>();
+            }
+            if let Ok(mut interaction) = q_interaction.get_mut(entity) {
+                interaction.set_changed();
+            }
+        }
+    }
+}
+
+fn maybe_disable_previous_level(
+    mut cmd: Commands,
+    level_index: Res<LevelIndex>,
+    q_next_level_button: Query<Entity, With<PreviousLevelButton>>,
+    mut q_interaction: Query<&mut Interaction, With<Button>>,
+) {
+    if level_index.is_changed() {
+        if let Ok(entity) = q_next_level_button.get_single() {
+            if level_index.0 == 0 {
                 cmd.entity(entity).try_insert(ButtonDisabled);
             } else {
                 cmd.entity(entity).remove::<ButtonDisabled>();
@@ -60,14 +80,19 @@ enum ButtonState {
 
 #[derive(Component)]
 struct ArrowButton;
+
 #[derive(Component)]
 struct NextLevelButton;
+
+#[derive(Component)]
+struct PreviousLevelButton;
 
 #[derive(Component)]
 enum ButtonType {
     Arrow,
     Reset,
     NextLevel,
+    PreviousLevel,
 }
 
 #[derive(Component)]
@@ -77,7 +102,10 @@ struct ArrowButtonText;
 pub struct ResetLevelEvent;
 
 #[derive(Event)]
-pub struct NextLevelEvent;
+pub enum ChangeLevelEvent {
+    Next,
+    Previous,
+}
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
@@ -107,7 +135,7 @@ fn button_system(
     mouse_pos: Res<MouseWorldCoords>,
     mouse_state: Res<MouseState>,
     mut ev_reset_level: EventWriter<ResetLevelEvent>,
-    mut ev_next_level: EventWriter<NextLevelEvent>,
+    mut ev_next_level: EventWriter<ChangeLevelEvent>,
 ) {
     for (
         interaction,
@@ -154,7 +182,10 @@ fn button_system(
                                 }
                             }
                             ButtonType::Reset => ev_reset_level.send(ResetLevelEvent),
-                            ButtonType::NextLevel => ev_next_level.send(NextLevelEvent),
+                            ButtonType::NextLevel => ev_next_level.send(ChangeLevelEvent::Next),
+                            ButtonType::PreviousLevel => {
+                                ev_next_level.send(ChangeLevelEvent::Previous)
+                            }
                         },
                         _ => *button_state = ButtonState::None,
                     }
@@ -196,9 +227,7 @@ fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
             style: Style {
                 width: Val::Percent(100.),
                 height: Val::Percent(100.),
-                // height: Val::Px(100.),
                 justify_content: JustifyContent::FlexStart,
-                // align_items: AlignItems::FlexStart,
                 flex_direction: FlexDirection::Row,
                 ..Default::default()
             },
@@ -227,6 +256,39 @@ fn instanciate(mut cmd: Commands, asset_server: Res<AssetServer>) {
                 cmd.spawn(ImageBundle {
                     image: UiImage {
                         texture: asset_server.load("reset_button.png"),
+                        ..Default::default()
+                    },
+                    style: Style {
+                        width: Val::Percent(100.),
+                        height: Val::Percent(100.),
+                        align_items: AlignItems::Center,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            });
+            cmd.spawn((
+                PreviousLevelButton,
+                ButtonState::None,
+                ButtonType::PreviousLevel,
+                ButtonBundle {
+                    style: Style {
+                        width: Val::VMin(7.),
+                        height: Val::VMin(7.),
+                        border: UiRect::all(Val::Px(5.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..Default::default()
+                    },
+                    border_color: BorderColor(Color::BLACK),
+                    background_color: NORMAL_BUTTON.into(),
+                    ..Default::default()
+                },
+            ))
+            .with_children(|cmd| {
+                cmd.spawn(ImageBundle {
+                    image: UiImage {
+                        texture: asset_server.load("previous_level_button.png"),
                         ..Default::default()
                     },
                     style: Style {
