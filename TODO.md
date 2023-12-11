@@ -7,4 +7,3 @@
 
 - set camera zoom on level change
 - limit max level in release
-- stop movement on victory or loss 

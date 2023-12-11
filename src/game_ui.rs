@@ -10,7 +10,7 @@ use crate::{
     game_camera::MouseWorldCoords,
     grouper::DraggedGrouper,
     inventory::Inventory,
-    levels::{LevelCount, LevelIndex, LevelTitle},
+    levels::{LevelCount, LevelIndex, LevelTitle, MaxAttainableLevel},
     mouse::{Drag, DragPos, MouseState},
 };
 
@@ -141,12 +141,14 @@ fn maybe_disable_next_level(
     mut cmd: Commands,
     level_count: Res<LevelCount>,
     level_index: Res<LevelIndex>,
+    max_attainable_level: Res<MaxAttainableLevel>,
     q_next_level_button: Query<Entity, With<NextLevelButton>>,
     mut q_interaction: Query<&mut Interaction, With<Button>>,
 ) {
     if level_index.is_changed() || level_count.is_changed() {
         if let Ok(entity) = q_next_level_button.get_single() {
-            if level_index.0 + 1 >= level_count.0 {
+            // println!("{}", max_attainable_level.0);v
+            if level_index.0 + 1 >= level_count.0 || level_index.0 >= max_attainable_level.0 {
                 cmd.entity(entity).try_insert(ButtonDisabled);
             } else {
                 cmd.entity(entity).remove::<ButtonDisabled>();

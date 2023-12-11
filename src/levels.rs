@@ -15,13 +15,18 @@ use bevy_ecs_ldtk::prelude::*;
 use bevy_ecs_ldtk::{assets::LdtkProject, LdtkWorldBundle};
 use bevy_rapier2d::prelude::*;
 
+#[cfg(not(debug_assertions))]
+const AFTER_LOAD: GameState = GameState::Menu;
+#[cfg(debug_assertions)]
 const AFTER_LOAD: GameState = GameState::Playing;
+
 pub struct LevelsPlugin;
 
 #[cfg(debug_assertions)]
-const LEVEL_NAMES: [&str; 6] = ["Level0", "Level1", "Level2", "Level3", "Level4", "Level5"];
+const LEVEL_NAMES: [&str; 5] = ["Level0", "Level1", "Level2", "Level3", "Level4"];
 #[cfg(debug_assertions)]
-const START_INDEX: usize = 4;
+const START_INDEX: usize = 0;
+pub const LAST_LEVEL_INDEX: usize = 5;
 
 #[cfg(not(debug_assertions))]
 const LEVEL_NAMES: [&str; 5] = ["Level0", "Level1", "Level2", "Level3", "Level4"];
@@ -74,11 +79,12 @@ impl Plugin for LevelsPlugin {
             .register_ldtk_entity::<EnemyDefenderBundle>("EnemyDefender")
             .register_ldtk_entity::<CameraStartBundle>("CameraStart");
         #[cfg(debug_assertions)]
-        app.add_systems(Update, bleh.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, cheat_win.run_if(in_state(GameState::Playing)));
     }
 }
 
-fn bleh(
+#[cfg(debug_assertions)]
+fn cheat_win(
     mut cmd: Commands,
     q_portal: Query<(Entity, &Team), With<Portal>>,
     keys: Res<Input<KeyCode>>,
@@ -103,7 +109,6 @@ fn bleh(
     if keys.just_pressed(KeyCode::R) {
         ev_reset_level.send(ResetLevelEvent);
         for entity in &q_level {
-            println!("bleh");
             next_level_state.0 = Some(LevelState::Playing);
             cmd.entity(entity).remove::<Victory>().remove::<Defeat>();
         }
@@ -118,12 +123,6 @@ fn set_level_index_changed(mut level_index: ResMut<LevelIndex>) {
 #[derive(Resource)]
 pub struct LevelTitle(pub String);
 
-//#[derive(Resource, Default)]
-// pub enum Victory {
-//     #[default]
-//     Undecided,
-
-// }
 #[derive(Resource)]
 pub struct MaxAttainableLevel(pub usize);
 #[derive(Resource)]
@@ -216,7 +215,7 @@ fn check_ldtk_loaded(
     }
 }
 
-pub fn spawn_ldtk(mut cmd: Commands, asset: Res<LdtkAsset>) {
+fn spawn_ldtk(mut cmd: Commands, asset: Res<LdtkAsset>) {
     let handle = asset.0.clone().unwrap();
     //let level_index = level_selection.as_ref().;
     cmd.spawn((
@@ -246,8 +245,9 @@ pub fn level_changed(
         match level_event {
             LevelEvent::Spawned(level_uuid) => {
                 let project = project_assets.get(q_project.single()).unwrap();
-                level_count.0 = project.root_levels().iter().count();
-                info!("level count : {}", level_count.0);
+                level_count.0 = LAST_LEVEL_INDEX;
+                // level_count.0 = project.root_levels().iter().count();
+                // info!("level count : {}", level_count.0);
                 let level = project
                     .as_standalone()
                     .get_loaded_level_by_iid(level_uuid.get())
@@ -387,7 +387,6 @@ fn watch_for_reset(
 }
 
 fn watch_for_next_level(
-    mut cmd: Commands,
     mut ev_next_level: EventReader<ChangeLevelEvent>,
     mut level_selection: ResMut<LevelSelection>,
     mut level_index: ResMut<LevelIndex>,

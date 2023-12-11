@@ -351,7 +351,11 @@ fn fire_canon(
     time: Res<Time>,
     mut ev_fire: EventWriter<FireEvent>,
     q_level: Query<&GlobalTransform, With<LevelIid>>,
+    level_state: Res<State<LevelState>>,
 ) {
+    if *level_state != LevelState::Playing {
+        return;
+    }
     for (canon_gtr, parent, mut cooldown, children, team) in &mut canon_q {
         cooldown.0.tick(time.delta());
         if cooldown.0.finished() {

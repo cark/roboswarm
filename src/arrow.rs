@@ -1,7 +1,6 @@
 use bevy::{
     math::{vec2, vec3},
     prelude::*,
-    utils::info,
 };
 use bevy_ecs_ldtk::{
     ldtk::ldtk_fields::LdtkFields,
@@ -13,23 +12,16 @@ use bevy_ecs_ldtk::{
 use bevy_rapier2d::{
     geometry::{ActiveEvents, Collider, Sensor},
     pipeline::CollisionEvent,
-    plugin::RapierContext,
 };
 
 use crate::{
     draggable::{drag_cancel_request, draggable_spawner, validate_drag, DragState, ValidDrag},
-    fork::DraggedFork,
     game::GameState,
-    game_camera::MouseWorldCoords,
     inventory::Inventory,
-    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere, WallCache},
+    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere},
     load::TextureAssets,
-    mouse::{
-        ClickSensor, ClickSensorEvent, Drag, DragCancelConfirm, DragCancelRequest, DragDropConfirm,
-        DragDropRequest, DragPos,
-    },
+    mouse::{ClickSensor, ClickSensorEvent, Drag, DragDropConfirm, DragDropRequest, DragPos},
     physics::{coll_groups, ObjectGroup, Team},
-    portal::Portal,
     robot::{EngineDir, Robot},
 };
 
