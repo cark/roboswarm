@@ -1,10 +1,7 @@
 use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_ecs_ldtk::{ldtk::loaded_level::LoadedLevel, prelude::*};
+use bevy_ecs_ldtk::prelude::*;
 
-use crate::{
-    game::GameState,
-    levels::{level_changed, LevelLoadedEvent},
-};
+use crate::{game::GameState, levels::LevelLoadedEvent};
 
 // const CAMERA_SPEED: f32 = 100.0;
 

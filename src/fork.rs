@@ -3,13 +3,10 @@ use std::f32::consts::PI;
 use bevy::{
     math::{vec2, vec3},
     prelude::*,
-    utils::info,
 };
 use bevy_ecs_ldtk::{
     prelude::*,
-    utils::{
-        grid_coords_to_translation, ldtk_grid_coords_to_grid_coords, translation_to_grid_coords,
-    },
+    utils::{grid_coords_to_translation, ldtk_grid_coords_to_grid_coords},
     EntityInstance, GridCoords, LevelIid,
 };
 use bevy_rapier2d::prelude::*;
@@ -17,14 +14,10 @@ use bevy_rapier2d::prelude::*;
 use crate::{
     draggable::{drag_cancel_request, draggable_spawner, validate_drag, DragState, ValidDrag},
     game::GameState,
-    game_camera::MouseWorldCoords,
     inventory::Inventory,
-    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere, WallCache},
+    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere},
     load::TextureAssets,
-    mouse::{
-        ClickSensor, ClickSensorEvent, Drag, DragCancelConfirm, DragCancelRequest, DragDropConfirm,
-        DragDropRequest, DragPos,
-    },
+    mouse::{ClickSensor, ClickSensorEvent, Drag, DragDropConfirm, DragDropRequest, DragPos},
     physics::{coll_groups, ObjectGroup, Team},
     robot::{EngineDir, Robot},
 };

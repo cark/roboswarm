@@ -4,9 +4,7 @@ use bevy::{
 };
 use bevy_ecs_ldtk::{
     ldtk::ldtk_fields::LdtkFields,
-    utils::{
-        grid_coords_to_translation, ldtk_grid_coords_to_grid_coords, translation_to_grid_coords,
-    },
+    utils::{grid_coords_to_translation, ldtk_grid_coords_to_grid_coords},
     EntityInstance, GridCoords, LdtkEntity, LevelIid,
 };
 use bevy_rapier2d::{

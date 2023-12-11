@@ -15,6 +15,7 @@ pub enum Team {
 }
 
 impl Team {
+    #[allow(dead_code)]
     pub fn opposing(self) -> Self {
         match self {
             Team::Player => Team::Enemy,
@@ -33,14 +34,6 @@ impl Team {
 pub struct ObjectGroup;
 
 impl ObjectGroup {
-    //pub const STEERING_SENSOR: u32 = 1 << 1;
-    // pub const CLICK: u32 = 1 << 2;
-    // pub const CLICK_SENSOR: u32 = 1 << 3;
-    // pub const WALL: u32 = 1 << 4;
-    // pub const ROBOT: u32 = 1 << 7;
-    // pub const PLAYER: u32 = 1 << 8;
-    // pub const ENEMY: u32 = 1 << 9;
-    // pub const PORTAL_SENSOR: u32 = 1 << 10;
     pub const PLAYER_ROBOT: u32 = 1 << 1;
     pub const ENEMY_ROBOT: u32 = 1 << 2;
     pub const WALL: u32 = 1 << 3;
@@ -51,7 +44,7 @@ impl ObjectGroup {
     pub const ENEMY_ARROW_SENSOR: u32 = 1 << 8;
     pub const PLAYER_PORTAL_SENSOR: u32 = 1 << 9;
     pub const ENEMY_PORTAL_SENSOR: u32 = 1 << 10;
-    pub const CLICKABLE: u32 = 1 << 11;
+    //pub const CLICKABLE: u32 = 1 << 11;
     pub const PLAYER_TARGETING_SENSOR: u32 = 1 << 12;
     pub const ENEMY_TARGETING_SENSOR: u32 = 1 << 13;
     pub const PLAYER_BULLET: u32 = 1 << 14;

@@ -13,7 +13,7 @@ use crate::{
     hp::Life,
     load::TextureAssets,
     physics::{coll_groups, ObjectGroup, Team},
-    robot::{FireEvent, Robot},
+    robot::FireEvent,
 };
 
 pub struct BulletPlugin;

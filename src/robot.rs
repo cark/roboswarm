@@ -4,16 +4,14 @@ use bevy::{
     math::{vec2, vec3},
     prelude::*,
     sprite::Anchor,
-    time::Stopwatch,
 };
 
 use bevy_ecs_ldtk::LevelIid;
-use bevy_rapier2d::{prelude::*, rapier::pipeline::DebugRenderObject};
+use bevy_rapier2d::prelude::*;
 
 use crate::{
     explosion::ExplosionEvent,
     game::{GameState, LevelState},
-    game_camera::MouseWorldCoords,
     hp::{Dead, Life},
     levels::WallCollider,
     load::TextureAssets,

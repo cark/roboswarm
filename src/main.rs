@@ -4,7 +4,7 @@
 use bevy::asset::AssetMetaCheck;
 
 use bevy::{math::ivec2, prelude::*, window::WindowResolution};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+
 use robo_swarm::*;
 
 fn main() {
@@ -36,15 +36,9 @@ fn main() {
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
-            //TemporalAntiAliasPlugin,
             GamePlugin,
-            //    WorldInspectorPlugin::new(),
         ));
 
-    // #[cfg(target_arch = "wasm32")]
-    // {
-    //     info("nocheck !!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    // }
     app.insert_resource(AssetMetaCheck::Never);
     // .add_systems(Startup, set_window_icon)
     app.run();

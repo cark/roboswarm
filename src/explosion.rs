@@ -4,7 +4,7 @@ use bevy::{
     math::{vec2, vec3},
     prelude::*,
 };
-use bevy_easings::{Ease, EaseFunction, EaseMethod, EasingType};
+use bevy_easings::{Ease, EaseMethod, EasingType};
 use bevy_ecs_ldtk::LevelIid;
 
 use crate::{game::GameState, load::TextureAssets};
@@ -79,7 +79,6 @@ struct Explosion {
     particle_radius: f32,
     particle_speed: Vec2,
     particle_duration: Duration,
-    particle_count: u32,
     //duration : Duration,
 }
 
@@ -107,7 +106,6 @@ fn watch_for_explosion(
                         particle_radius: ev.particle_radius,
                         particle_speed: ev.particle_speed,
                         particle_duration: ev.particle_duration,
-                        particle_count: ev.particle_count,
                     },
                 ))
                 .id();

@@ -7,8 +7,7 @@ use bevy_ecs_ldtk::{
 use crate::{
     game_camera::MouseWorldCoords,
     levels::{LevelSize, NoPlacingHere, WallCache},
-    load::TextureAssets,
-    mouse::{Drag, DragCancelConfirm, DragCancelRequest, DragDropRequest, DragPos},
+    mouse::{Drag, DragCancelConfirm, DragCancelRequest, DragPos},
 };
 
 #[derive(Component, PartialEq)]

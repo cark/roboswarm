@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::{ecs::system::SystemChangeTick, prelude::*};
+use bevy::prelude::*;
 
 use crate::{
     arrow::DraggedArrow,
@@ -213,18 +213,16 @@ fn button_system(
     mut cmd: Commands,
     mut interaction_query: Query<
         (
-            Entity,
             &Interaction,
             &mut BackgroundColor,
             &mut BorderColor,
             &mut ButtonState,
             &ButtonType,
             Option<&ButtonDisabled>,
-            &Children,
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut q_visibility: Query<&mut Visibility>,
+
     inventory: Res<Inventory>,
     mouse_pos: Res<MouseWorldCoords>,
     mouse_state: Res<MouseState>,
@@ -232,16 +230,8 @@ fn button_system(
     mut ev_next_level: EventWriter<ChangeLevelEvent>,
     mut ev_main_menu: EventWriter<MainMenuEvent>,
 ) {
-    for (
-        e_button,
-        interaction,
-        mut color,
-        mut border_color,
-        mut button_state,
-        button_type,
-        disabled,
-        children,
-    ) in &mut interaction_query
+    for (interaction, mut color, mut border_color, mut button_state, button_type, disabled) in
+        &mut interaction_query
     {
         //let text = &mut text_query.get_mut(children[0]).unwrap().sections[0];
         if disabled.is_none() {
