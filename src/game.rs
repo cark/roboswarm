@@ -9,6 +9,7 @@ use crate::bullet::BulletPlugin;
 use crate::explosion::ExplosionPlugin;
 use crate::fork::ForkPlugin;
 use crate::game_ui::{GameUiPlugin, MainMenuEvent};
+use crate::grouper::GrouperPlugin;
 use crate::hp::HpPlugin;
 use crate::inventory::InventoryPlugin;
 use crate::levels::LevelsPlugin;
@@ -58,7 +59,7 @@ impl Plugin for GamePlugin {
                 InventoryPlugin,
                 GameUiPlugin,
             ),
-            (PortalPlugin, ArrowPlugin, ForkPlugin),
+            (PortalPlugin, ArrowPlugin, ForkPlugin, GrouperPlugin),
             BulletPlugin,
             HpPlugin,
             ExplosionPlugin,
@@ -73,7 +74,8 @@ impl Plugin for GamePlugin {
         .add_systems(
             PostUpdate,
             watch_main_menu_event.run_if(in_state(GameState::Playing)),
-        );
+        )
+        .add_systems(PreUpdate, log_states);
         app.add_plugins(RapierDebugRenderPlugin::default());
     }
 }
@@ -92,5 +94,14 @@ fn watch_main_menu_event(
             next_state.0 = Some(GameState::Menu);
             next_level_state.0 = Some(LevelState::WaitingLevelSpawn);
         }
+    }
+}
+
+fn log_states(level_state: Res<State<LevelState>>, game_state: Res<State<GameState>>) {
+    if game_state.is_changed() {
+        info!("GameState: {:?}", *game_state);
+    }
+    if level_state.is_changed() {
+        info!("LevelState: {:?}", *level_state);
     }
 }

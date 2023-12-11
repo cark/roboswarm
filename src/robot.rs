@@ -197,7 +197,8 @@ fn check_spawn_robot(
                                     | ObjectGroup::ENEMY_TARGETING_SENSOR
                                     | ObjectGroup::ENEMY_BULLET
                                     | ObjectGroup::ENEMY_PORTAL
-                                    | ObjectGroup::PLAYER_FORK_SENSOR,
+                                    | ObjectGroup::PLAYER_FORK_SENSOR
+                                    | ObjectGroup::PLAYER_GROUPER_SENSOR,
                             ),
                             Team::Enemy => coll_groups(
                                 ObjectGroup::ENEMY_ROBOT,
@@ -210,7 +211,8 @@ fn check_spawn_robot(
                                     | ObjectGroup::PLAYER_TARGETING_SENSOR
                                     | ObjectGroup::PLAYER_BULLET
                                     | ObjectGroup::PLAYER_PORTAL
-                                    | ObjectGroup::ENEMY_FORK_SENSOR,
+                                    | ObjectGroup::ENEMY_FORK_SENSOR
+                                    | ObjectGroup::ENEMY_GROUPER_SENSOR,
                             ),
                         },
                     ),

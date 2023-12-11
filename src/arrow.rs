@@ -17,6 +17,8 @@ use bevy_rapier2d::{
 };
 
 use crate::{
+    draggable::{drag_cancel_request, draggable_spawner, validate_drag, DragState, ValidDrag},
+    fork::DraggedFork,
     game::GameState,
     game_camera::MouseWorldCoords,
     inventory::Inventory,
@@ -38,10 +40,13 @@ impl Plugin for ArrowPlugin {
         app.add_systems(
             Update,
             (
-                spawn_draggable_arrow,
-                validate_drag,
+                (
+                    draggable_spawner::<DraggedArrow>("arrow.png"),
+                    validate_drag::<DraggedArrow>,
+                    drag_cancel_request::<DraggedArrow>,
+                ),
                 check_click,
-                (drag_cancel_request, drop_request).chain(),
+                (drop_request).chain(),
                 update_robot_motors,
                 fixup_enemy_arrow,
             )
@@ -59,7 +64,11 @@ pub struct EnemyArrowBundle {
     ltdk_dir: LdtkDir,
     #[grid_coords]
     grid_coords: GridCoords,
+    enemy_arrow: EnemyArrow,
 }
+
+#[derive(Component, Default)]
+struct EnemyArrow;
 
 fn extract_ldtk_dir(entity_instance: &EntityInstance) -> LdtkDir {
     LdtkDir(*entity_instance.get_point_field("direction").unwrap())
@@ -68,19 +77,10 @@ fn extract_ldtk_dir(entity_instance: &EntityInstance) -> LdtkDir {
 #[derive(Component)]
 pub struct DraggedArrow;
 
-#[derive(Component, PartialEq)]
-enum DragState {
-    Dragging,
-    SettingDirection(Transform),
-}
-
 #[derive(Component)]
 pub struct Arrow {
     dir: Vec2,
 }
-
-#[derive(Component)]
-struct ValidDrag;
 
 #[derive(Component)]
 struct ArrowClickSensor;
@@ -88,89 +88,9 @@ struct ArrowClickSensor;
 #[derive(Component)]
 struct ArrowRobotSensor;
 
-fn spawn_draggable_arrow(
-    mut cmd: Commands,
-    assets: Res<TextureAssets>,
-    q_drag: Query<(Entity, &DragPos), (With<DraggedArrow>, Added<Drag>)>,
-) {
-    for (entity, drag_pos) in &q_drag {
-        cmd.entity(entity).insert((
-            SpriteBundle {
-                transform: Transform::from_translation(drag_pos.0.extend(0.0)),
-                texture: assets.arrow.clone(),
-                ..Default::default()
-            },
-            DragState::Dragging,
-        ));
-    }
-}
-
-fn validate_drag(
-    mut cmd: Commands,
-    mut q_drag: Query<(Entity, &mut Transform, &mut Sprite, &DragState), With<DraggedArrow>>,
-    mouse_pos: Res<MouseWorldCoords>,
-    q_level: Query<(&GlobalTransform, &WallCache), With<LevelIid>>,
-    level_size: Res<LevelSize>,
-    q_occupied: Query<&GridCoords, With<NoPlacingHere>>, //wall_cache: Res<WallCache>,
-) {
-    for (entity, mut drag_tr, mut sprite, drag_state) in &mut q_drag {
-        match drag_state {
-            DragState::Dragging => {
-                cmd.entity(entity).remove::<ValidDrag>();
-                if let Some(pos) = mouse_pos.0 {
-                    drag_tr.translation = pos.extend(0.0);
-                    sprite.color = Color::WHITE.with_a(0.4);
-                    let (level_gtr, wall_cache) = q_level.single();
-                    if let Some(size_info) = level_size.0 {
-                        let coords = translation_to_grid_coords(
-                            drag_tr.translation.truncate() - level_gtr.translation().truncate(),
-                            size_info.tile_size_vec(),
-                        );
-                        if size_info.grid_coords_in_bound(coords)
-                            && !wall_cache.items.contains_key(&coords)
-                            && q_occupied.iter().all(|grid_coord| {
-                                (Into::<IVec2>::into(*grid_coord) - Into::<IVec2>::into(coords))
-                                    .as_vec2()
-                                    .length()
-                                    >= 2.0
-                            })
-                        {
-                            drag_tr.translation =
-                                grid_coords_to_translation(coords, size_info.tile_size_vec())
-                                    .extend(0.0)
-                                    + level_gtr
-                                        .translation()
-                                        .truncate()
-                                        .extend(drag_tr.translation.z);
-                            sprite.color = Color::WHITE.with_a(1.0);
-                            cmd.entity(entity).insert(ValidDrag).insert(coords);
-                        }
-                    }
-                }
-            }
-            DragState::SettingDirection(center_tr) => {
-                if let Some(pos) = mouse_pos.0 {
-                    let angle =
-                        vec2(1.0, 0.0).angle_between(pos - center_tr.translation.truncate());
-                    *drag_tr = drag_tr.with_rotation(Quat::from_rotation_z(angle));
-                }
-            }
-        }
-    }
-}
-
-fn drag_cancel_request(
-    mut cmd: Commands,
-    q_drag: Query<Entity, (Added<DragCancelRequest>, With<DraggedArrow>)>,
-) {
-    for entity in &q_drag {
-        cmd.entity(entity).insert(DragCancelConfirm);
-    }
-}
-
 fn fixup_enemy_arrow(
     mut cmd: Commands,
-    q_arrow: Query<(Entity, &LdtkDir, &GridCoords, &Transform)>,
+    q_arrow: Query<(Entity, &LdtkDir, &GridCoords, &Transform), With<EnemyArrow>>,
     q_level: Query<Entity, With<LevelIid>>,
     level_size: Res<LevelSize>,
     mut ev_level_loaded: EventReader<LevelLoadedEvent>,
@@ -231,7 +151,7 @@ fn spawn_arrow(
         cmd.spawn((
             ArrowRobotSensor,
             Sensor,
-            Collider::ball(if team == Team::Player { 96. } else { 96. * 2. }),
+            Collider::ball(96.),
             match team {
                 Team::Player => {
                     coll_groups(ObjectGroup::PLAYER_ARROW_SENSOR, ObjectGroup::PLAYER_ROBOT)

@@ -6,23 +6,26 @@ use bevy::{
     utils::info,
 };
 use bevy_ecs_ldtk::{
-    utils::{grid_coords_to_translation, translation_to_grid_coords},
-    GridCoords, LevelIid,
+    prelude::*,
+    utils::{
+        grid_coords_to_translation, ldtk_grid_coords_to_grid_coords, translation_to_grid_coords,
+    },
+    EntityInstance, GridCoords, LevelIid,
 };
 use bevy_rapier2d::prelude::*;
 
 use crate::{
+    draggable::{drag_cancel_request, draggable_spawner, validate_drag, DragState, ValidDrag},
     game::GameState,
     game_camera::MouseWorldCoords,
     inventory::Inventory,
-    levels::{LevelSize, NoPlacingHere, WallCache},
+    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere, WallCache},
     load::TextureAssets,
     mouse::{
         ClickSensor, ClickSensorEvent, Drag, DragCancelConfirm, DragCancelRequest, DragDropConfirm,
         DragDropRequest, DragPos,
     },
     physics::{coll_groups, ObjectGroup, Team},
-    portal::Portal,
     robot::{EngineDir, Robot},
 };
 
@@ -33,15 +36,65 @@ impl Plugin for ForkPlugin {
         app.add_systems(
             Update,
             (
-                spawn_draggable_fork,
-                validate_drag,
+                (
+                    draggable_spawner::<DraggedFork>("fork.png"),
+                    validate_drag::<DraggedFork>,
+                    drag_cancel_request::<DraggedFork>,
+                ),
                 check_click,
-                (drag_cancel_request, drop_request).chain(),
+                drop_request,
                 update_robot_motors,
-                // fixup_enemy_arrow,
+                fixup_enemy_fork,
             )
                 .run_if(in_state(GameState::Playing)),
         );
+    }
+}
+
+#[derive(Component, Default)]
+struct LdtkDir(IVec2);
+
+#[derive(Bundle, LdtkEntity, Default)]
+pub struct EnemyForkBundle {
+    #[with(extract_ldtk_dir)]
+    ltdk_dir: LdtkDir,
+    #[grid_coords]
+    grid_coords: GridCoords,
+    enemy_fork: EnemyFork,
+}
+
+fn extract_ldtk_dir(entity_instance: &EntityInstance) -> LdtkDir {
+    LdtkDir(*entity_instance.get_point_field("direction").unwrap())
+}
+
+#[derive(Component, Default)]
+struct EnemyFork;
+
+fn fixup_enemy_fork(
+    mut cmd: Commands,
+    q_fork: Query<(Entity, &LdtkDir, &GridCoords, &Transform), With<EnemyFork>>,
+    q_level: Query<Entity, With<LevelIid>>,
+    level_size: Res<LevelSize>,
+    mut ev_level_loaded: EventReader<LevelLoadedEvent>,
+) {
+    for _ in ev_level_loaded.read() {
+        for (entity, LdtkDir(ldtk_dir), grid_coords, tr) in &q_fork {
+            if let Some(level_size) = level_size.0 {
+                let dir = ldtk_grid_coords_to_grid_coords(*ldtk_dir, level_size.size.y);
+                let dir = grid_coords_to_translation(dir, level_size.tile_size_vec());
+                let level_entity = q_level.single();
+                cmd.entity(entity).remove::<LdtkDir>();
+                let arrow = spawn_fork(
+                    &mut cmd,
+                    *tr,
+                    (dir - tr.translation.truncate()).normalize(),
+                    Team::Enemy,
+                    None,
+                    *grid_coords,
+                );
+                cmd.entity(level_entity).add_child(arrow);
+            }
+        }
     }
 }
 
@@ -54,99 +107,10 @@ struct ForkClickSensor;
 #[derive(Component)]
 struct ForkRobotSensor;
 
-#[derive(Component, PartialEq)]
-enum DragState {
-    Dragging,
-    SettingDirection(Transform),
-}
-
 #[derive(Component)]
 pub struct Fork {
     dirs: [Vec2; 2],
     forked_count: usize,
-}
-
-#[derive(Component)]
-struct ValidDrag;
-
-fn spawn_draggable_fork(
-    mut cmd: Commands,
-    assets: Res<TextureAssets>,
-    q_drag: Query<(Entity, &DragPos), (With<DraggedFork>, Added<Drag>)>,
-) {
-    for (entity, drag_pos) in &q_drag {
-        cmd.entity(entity).insert((
-            SpriteBundle {
-                transform: Transform::from_translation(drag_pos.0.extend(0.0)),
-                texture: assets.fork.clone(),
-                ..Default::default()
-            },
-            DragState::Dragging,
-        ));
-    }
-}
-
-fn validate_drag(
-    mut cmd: Commands,
-    mut q_drag: Query<(Entity, &mut Transform, &mut Sprite, &DragState), With<DraggedFork>>,
-    mouse_pos: Res<MouseWorldCoords>,
-    q_level: Query<(&GlobalTransform, &WallCache), With<LevelIid>>,
-    level_size: Res<LevelSize>,
-    q_occupied: Query<&GridCoords, With<NoPlacingHere>>, //wall_cache: Res<WallCache>,
-) {
-    for (entity, mut drag_tr, mut sprite, drag_state) in &mut q_drag {
-        match drag_state {
-            DragState::Dragging => {
-                cmd.entity(entity).remove::<ValidDrag>();
-                if let Some(pos) = mouse_pos.0 {
-                    drag_tr.translation = pos.extend(0.0);
-                    sprite.color = Color::WHITE.with_a(0.4);
-                    let (level_gtr, wall_cache) = q_level.single();
-                    if let Some(size_info) = level_size.0 {
-                        let coords = translation_to_grid_coords(
-                            drag_tr.translation.truncate() - level_gtr.translation().truncate(),
-                            size_info.tile_size_vec(),
-                        );
-                        if size_info.grid_coords_in_bound(coords)
-                            && !wall_cache.items.contains_key(&coords)
-                            && q_occupied.iter().all(|grid_coord| {
-                                (Into::<IVec2>::into(*grid_coord) - Into::<IVec2>::into(coords))
-                                    .as_vec2()
-                                    .length()
-                                    >= 2.0
-                            })
-                        {
-                            drag_tr.translation =
-                                grid_coords_to_translation(coords, size_info.tile_size_vec())
-                                    .extend(0.0)
-                                    + level_gtr
-                                        .translation()
-                                        .truncate()
-                                        .extend(drag_tr.translation.z);
-                            sprite.color = Color::WHITE.with_a(1.0);
-                            cmd.entity(entity).insert(ValidDrag).insert(coords);
-                        }
-                    }
-                }
-            }
-            DragState::SettingDirection(center_tr) => {
-                if let Some(pos) = mouse_pos.0 {
-                    let angle =
-                        vec2(1.0, 0.0).angle_between(pos - center_tr.translation.truncate());
-                    *drag_tr = drag_tr.with_rotation(Quat::from_rotation_z(angle));
-                }
-            }
-        }
-    }
-}
-
-fn drag_cancel_request(
-    mut cmd: Commands,
-    q_drag: Query<Entity, (Added<DragCancelRequest>, With<DraggedFork>)>,
-) {
-    for entity in &q_drag {
-        cmd.entity(entity).insert(DragCancelConfirm);
-    }
 }
 
 fn drop_request(
@@ -248,7 +212,7 @@ fn spawn_fork(
         cmd.spawn((
             ForkRobotSensor,
             Sensor,
-            Collider::ball(if team == Team::Player { 96. } else { 96. * 2. }),
+            Collider::ball(96.),
             match team {
                 Team::Player => {
                     coll_groups(ObjectGroup::PLAYER_FORK_SENSOR, ObjectGroup::PLAYER_ROBOT)

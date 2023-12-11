@@ -192,7 +192,7 @@ pub fn check_added_portals(
                 cmd.spawn((
                     PortalSensor,
                     Sensor,
-                    Collider::cuboid(portal.dir.length(), PORTAL_SENSOR_WIDTH / 2.),
+                    Collider::cuboid(portal.dir.length() + 32., PORTAL_SENSOR_WIDTH),
                     TransformBundle::from_transform(
                         Transform::from_rotation(Quat::from_rotation_arc_2d(
                             vec2(1.0, 0.0),

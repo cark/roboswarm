@@ -33,6 +33,8 @@ pub struct TextureAssets {
     pub arrow: Handle<Image>,
     #[asset(path = "fork.png")]
     pub fork: Handle<Image>,
+    #[asset(path = "grouper.png")]
+    pub grouper: Handle<Image>,
     #[asset(path = "nuzzle_flash.png")]
     pub nuzzle_flash: Handle<Image>,
     #[asset(path = "bullet.png")]

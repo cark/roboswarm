@@ -5,6 +5,7 @@ use crate::{
     fork::DraggedFork,
     game::{GameState, LevelState},
     game_camera::MouseWorldCoords,
+    grouper::DraggedGrouper,
     inventory::Inventory,
     levels::{LevelCount, LevelIndex},
     mouse::{Drag, DragPos, MouseState},
@@ -19,14 +20,8 @@ impl Plugin for GameUiPlugin {
             .add_event::<MainMenuEvent>()
             // .add_systems(OnEnter(GameState::Playing), instanciate)
             // .add_systems(OnExit(GameState::Playing), destroy)
-            .add_systems(
-                OnEnter(LevelState::Playing),
-                instanciate_ui.run_if(in_state(GameState::Playing)),
-            )
-            .add_systems(
-                OnExit(LevelState::Playing),
-                destroy_ui.run_if(in_state(GameState::Playing)),
-            )
+            .add_systems(OnEnter(LevelState::Playing), instanciate_ui)
+            .add_systems(OnExit(LevelState::Playing), destroy_ui)
             .add_systems(OnEnter(LevelState::Win), instanciate_win_screen)
             .add_systems(OnExit(LevelState::Win), destroy_win_screen)
             .add_systems(OnEnter(LevelState::Loss), instanciate_loss_screen)
@@ -37,9 +32,14 @@ impl Plugin for GameUiPlugin {
                     button_system,
                     update_arrow_button,
                     update_fork_button,
-                    (maybe_disable_previous_level, maybe_disable_next_level).after(button_system),
-                )
-                    .run_if(in_state(GameState::Playing)),
+                    update_grouper_button,
+                ),
+            )
+            .add_systems(Update, check_disabled.run_if(in_state(LevelState::Playing)))
+            .add_systems(
+                PostUpdate,
+                (maybe_disable_previous_level, maybe_disable_next_level)
+                    .run_if(in_state(LevelState::Playing)),
             );
     }
 }
@@ -57,6 +57,8 @@ enum ButtonState {
 struct ArrowButton;
 #[derive(Component)]
 struct ForkButton;
+#[derive(Component)]
+struct GrouperButton;
 
 #[derive(Component)]
 struct NextLevelButton;
@@ -71,6 +73,7 @@ struct MainMenuButton;
 enum ButtonType {
     Arrow,
     Fork,
+    Grouper,
     Reset,
     NextLevel,
     PreviousLevel,
@@ -81,6 +84,8 @@ enum ButtonType {
 struct ArrowButtonText;
 #[derive(Component)]
 struct ForkButtonText;
+#[derive(Component)]
+struct GrouperButtonText;
 
 #[derive(Event)]
 pub struct ResetLevelEvent;
@@ -145,10 +150,39 @@ fn maybe_disable_previous_level(
     }
 }
 
+fn check_disabled(
+    mut q_button: Query<(
+        &Children,
+        &mut BackgroundColor,
+        &mut BorderColor,
+        Option<&ButtonDisabled>,
+    )>,
+    mut q_visibility: Query<&mut Visibility>,
+) {
+    for (children, mut color, mut border_color, disabled) in &mut q_button {
+        if disabled.is_some() {
+            *color = DISABLED_BUTTON.into();
+            border_color.0 = DISABLED_BUTTON;
+            for child in children.iter() {
+                if let Ok(mut visibility) = q_visibility.get_mut(*child) {
+                    *visibility = Visibility::Hidden;
+                }
+            }
+        } else {
+            for child in children.iter() {
+                if let Ok(mut visibility) = q_visibility.get_mut(*child) {
+                    *visibility = Visibility::Visible;
+                }
+            }
+        }
+    }
+}
+
 fn button_system(
     mut cmd: Commands,
     mut interaction_query: Query<
         (
+            Entity,
             &Interaction,
             &mut BackgroundColor,
             &mut BorderColor,
@@ -168,6 +202,7 @@ fn button_system(
     mut ev_main_menu: EventWriter<MainMenuEvent>,
 ) {
     for (
+        e_button,
         interaction,
         mut color,
         mut border_color,
@@ -178,20 +213,7 @@ fn button_system(
     ) in &mut interaction_query
     {
         //let text = &mut text_query.get_mut(children[0]).unwrap().sections[0];
-        if disabled.is_some() {
-            *color = DISABLED_BUTTON.into();
-            border_color.0 = DISABLED_BUTTON;
-            for child in children.iter() {
-                if let Ok(mut visibility) = q_visibility.get_mut(*child) {
-                    *visibility = Visibility::Hidden;
-                }
-            }
-        } else {
-            for child in children.iter() {
-                if let Ok(mut visibility) = q_visibility.get_mut(*child) {
-                    *visibility = Visibility::Visible;
-                }
-            }
+        if disabled.is_none() {
             match *interaction {
                 Interaction::Pressed => {
                     *color = PRESSED_BUTTON.into();
@@ -204,26 +226,53 @@ fn button_system(
                     border_color.0 = Color::WHITE;
                     //text.style.color = Color::rgb(0.9, 0.9, 0.9);
                     match *button_state {
-                        ButtonState::Down => match button_type {
-                            ButtonType::Arrow => {
-                                if inventory.arrow_count > 0 && *mouse_state != MouseState::Dragging
-                                {
-                                    cmd.spawn((Drag, DragPos(mouse_pos.0.unwrap()), DraggedArrow));
+                        ButtonState::Down => {
+                            match button_type {
+                                ButtonType::Arrow => {
+                                    if inventory.arrow_count > 0
+                                        && *mouse_state != MouseState::Dragging
+                                    {
+                                        cmd.spawn((
+                                            Drag,
+                                            DragPos(mouse_pos.0.unwrap()),
+                                            DraggedArrow,
+                                        ));
+                                    }
+                                }
+                                ButtonType::Reset => ev_reset_level.send(ResetLevelEvent),
+                                ButtonType::NextLevel => {
+                                    // info!("send next level event from button {:?}", e_button);
+                                    ev_next_level.send(ChangeLevelEvent::Next);
+                                }
+                                ButtonType::PreviousLevel => {
+                                    ev_next_level.send(ChangeLevelEvent::Previous)
+                                }
+                                ButtonType::MainMenu => ev_main_menu.send(MainMenuEvent),
+                                ButtonType::Fork => {
+                                    if inventory.fork_count > 0
+                                        && *mouse_state != MouseState::Dragging
+                                    {
+                                        cmd.spawn((
+                                            Drag,
+                                            DragPos(mouse_pos.0.unwrap()),
+                                            DraggedFork,
+                                        ));
+                                    }
+                                }
+                                ButtonType::Grouper => {
+                                    if inventory.grouper_count > 0
+                                        && *mouse_state != MouseState::Dragging
+                                    {
+                                        cmd.spawn((
+                                            Drag,
+                                            DragPos(mouse_pos.0.unwrap()),
+                                            DraggedGrouper,
+                                        ));
+                                    }
                                 }
                             }
-                            ButtonType::Reset => ev_reset_level.send(ResetLevelEvent),
-                            ButtonType::NextLevel => ev_next_level.send(ChangeLevelEvent::Next),
-                            ButtonType::PreviousLevel => {
-                                ev_next_level.send(ChangeLevelEvent::Previous)
-                            }
-                            ButtonType::MainMenu => ev_main_menu.send(MainMenuEvent),
-                            ButtonType::Fork => {
-                                if inventory.fork_count > 0 && *mouse_state != MouseState::Dragging
-                                {
-                                    cmd.spawn((Drag, DragPos(mouse_pos.0.unwrap()), DraggedFork));
-                                }
-                            }
-                        },
+                            *button_state = ButtonState::None;
+                        }
                         _ => *button_state = ButtonState::None,
                     }
                 }
@@ -436,171 +485,151 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                 ..Default::default()
             })
             .with_children(|cmd| {
-                cmd.spawn((
-                    ButtonBundle {
-                        style: Style {
-                            width: Val::VMin(8.),
-                            height: Val::VMin(8.),
-                            border: UiRect::all(Val::Px(5.0)),
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
-                            ..Default::default()
-                        },
-                        border_color: BorderColor(Color::BLACK),
-                        background_color: NORMAL_BUTTON.into(),
-                        ..Default::default()
-                    },
-                    ButtonState::None,
-                    ArrowButton,
+                spawn_placeable_button(
+                    cmd,
+                    &asset_server,
+                    "arrow.png",
                     ButtonType::Arrow,
-                ))
-                .with_children(|cmd| {
-                    cmd.spawn(ImageBundle {
-                        image: UiImage {
-                            texture: asset_server.load("arrow.png"),
-                            ..Default::default()
-                        },
-                        style: Style {
-                            width: Val::Percent(80.),
-                            height: Val::Percent(80.),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    })
-                    .with_children(|cmd| {
-                        cmd.spawn(NodeBundle {
-                            style: Style {
-                                height: Val::Percent(100.),
-                                width: Val::Percent(100.),
-                                align_items: AlignItems::FlexEnd,
-                                ..Default::default()
-                            },
-                            // background_color: BackgroundColor(Color::BLUE),
-                            ..Default::default()
-                        })
-                        .with_children(|cmd| {
-                            cmd.spawn(NodeBundle {
-                                style: Style {
-                                    width: Val::Percent(100.0),
-                                    flex_direction: FlexDirection::Row,
-                                    justify_content: JustifyContent::FlexEnd,
-                                    align_items: AlignItems::FlexEnd,
-                                    ..Default::default()
-                                },
-                                // background_color: BackgroundColor(Color::RED),
-                                ..Default::default()
-                            })
-                            .with_children(|cmd| {
-                                cmd.spawn((
-                                    TextBundle::from_section(
-                                        "0",
-                                        TextStyle {
-                                            font: asset_server.load("GeoFont-Bold.otf"),
-                                            font_size: 24.0,
-                                            color: Color::rgb(0.9, 0.9, 0.9),
-                                        },
-                                    ),
-                                    ArrowButtonText,
-                                ));
-                            });
-                        });
-                    });
-                });
-                cmd.spawn((
-                    ButtonBundle {
-                        style: Style {
-                            width: Val::VMin(8.),
-                            height: Val::VMin(8.),
-                            border: UiRect::all(Val::Px(5.0)),
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
-                            ..Default::default()
-                        },
-                        border_color: BorderColor(Color::BLACK),
-                        background_color: NORMAL_BUTTON.into(),
-                        ..Default::default()
-                    },
-                    ButtonState::None,
-                    ForkButton,
+                    ArrowButton,
+                    ArrowButtonText,
+                );
+                spawn_placeable_button(
+                    cmd,
+                    &asset_server,
+                    "fork.png",
                     ButtonType::Fork,
-                ))
-                .with_children(|cmd| {
-                    cmd.spawn(ImageBundle {
-                        image: UiImage {
-                            texture: asset_server.load("fork.png"),
-                            ..Default::default()
-                        },
-                        style: Style {
-                            width: Val::Percent(80.),
-                            height: Val::Percent(80.),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    })
-                    .with_children(|cmd| {
-                        cmd.spawn(NodeBundle {
-                            style: Style {
-                                height: Val::Percent(100.),
-                                width: Val::Percent(100.),
-                                align_items: AlignItems::FlexEnd,
-                                ..Default::default()
-                            },
-                            // background_color: BackgroundColor(Color::BLUE),
-                            ..Default::default()
-                        })
-                        .with_children(|cmd| {
-                            cmd.spawn(NodeBundle {
-                                style: Style {
-                                    width: Val::Percent(100.0),
-                                    flex_direction: FlexDirection::Row,
-                                    justify_content: JustifyContent::FlexEnd,
-                                    align_items: AlignItems::FlexEnd,
-                                    ..Default::default()
-                                },
-                                // background_color: BackgroundColor(Color::RED),
-                                ..Default::default()
-                            })
-                            .with_children(|cmd| {
-                                cmd.spawn((
-                                    TextBundle::from_section(
-                                        "0",
-                                        TextStyle {
-                                            font: asset_server.load("GeoFont-Bold.otf"),
-                                            font_size: 24.0,
-                                            color: Color::rgb(0.9, 0.9, 0.9),
-                                        },
-                                    ),
-                                    ForkButtonText,
-                                ));
-                            });
-                        });
-                    });
-                });
+                    ForkButton,
+                    ForkButtonText,
+                );
+                spawn_placeable_button(
+                    cmd,
+                    &asset_server,
+                    "grouper.png",
+                    ButtonType::Grouper,
+                    GrouperButton,
+                    GrouperButtonText,
+                );
             });
         });
     });
+}
+
+//"fork.png"
+//ButtonType::Fork
+//ForkButton
+//ForkButtonText
+fn spawn_placeable_button<ButtonMarker: Component, TextMarker: Component>(
+    cmd: &mut ChildBuilder,
+    asset_server: &Res<AssetServer>,
+    texture_name: &str,
+    button_type: ButtonType,
+    button_marker: ButtonMarker,
+    text_marker: TextMarker,
+) -> Entity {
+    cmd.spawn((
+        ButtonBundle {
+            style: Style {
+                width: Val::VMin(8.),
+                height: Val::VMin(8.),
+                border: UiRect::all(Val::Px(5.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            border_color: BorderColor(Color::BLACK),
+            background_color: NORMAL_BUTTON.into(),
+            ..Default::default()
+        },
+        ButtonState::None,
+        button_marker,
+        button_type,
+    ))
+    .with_children(|cmd| {
+        cmd.spawn(ImageBundle {
+            image: UiImage {
+                texture: asset_server.load(texture_name.to_string()),
+                ..Default::default()
+            },
+            style: Style {
+                width: Val::Percent(80.),
+                height: Val::Percent(80.),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .with_children(|cmd| {
+            cmd.spawn(NodeBundle {
+                style: Style {
+                    height: Val::Percent(100.),
+                    width: Val::Percent(100.),
+                    align_items: AlignItems::FlexEnd,
+                    ..Default::default()
+                },
+                // background_color: BackgroundColor(Color::BLUE),
+                ..Default::default()
+            })
+            .with_children(|cmd| {
+                cmd.spawn(NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.0),
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::FlexEnd,
+                        align_items: AlignItems::FlexEnd,
+                        ..Default::default()
+                    },
+                    // background_color: BackgroundColor(Color::RED),
+                    ..Default::default()
+                })
+                .with_children(|cmd| {
+                    cmd.spawn((
+                        text_marker,
+                        TextBundle::from_section(
+                            "0",
+                            TextStyle {
+                                font: asset_server.load("GeoFont-Bold.otf"),
+                                font_size: 24.0,
+                                color: Color::rgb(0.9, 0.9, 0.9),
+                            },
+                        ),
+                    ));
+                });
+            });
+        });
+    })
+    .id()
 }
 
 fn update_arrow_button(
     mut q_arrow_button_text: Query<&mut Text, With<ArrowButtonText>>,
     inventory: Res<Inventory>,
 ) {
-    if inventory.is_changed() {
-        if let Ok(mut text) = q_arrow_button_text.get_single_mut() {
-            text.sections[0].value = inventory.arrow_count.to_string();
-        }
+    if let Ok(mut text) = q_arrow_button_text.get_single_mut() {
+        text.sections[0].value = inventory.arrow_count.to_string();
     }
+    // if inventory.is_changed() {
+    // }
 }
 
 fn update_fork_button(
     mut q_fork_button_text: Query<&mut Text, With<ForkButtonText>>,
     inventory: Res<Inventory>,
 ) {
-    if inventory.is_changed() {
-        if let Ok(mut text) = q_fork_button_text.get_single_mut() {
-            text.sections[0].value = inventory.fork_count.to_string();
-        }
+    if let Ok(mut text) = q_fork_button_text.get_single_mut() {
+        text.sections[0].value = inventory.fork_count.to_string();
     }
+    // if inventory.is_changed() {
+    // }
+}
+
+fn update_grouper_button(
+    mut q_grouper_button_text: Query<&mut Text, With<GrouperButtonText>>,
+    inventory: Res<Inventory>,
+) {
+    if let Ok(mut text) = q_grouper_button_text.get_single_mut() {
+        text.sections[0].value = inventory.grouper_count.to_string();
+    }
+    // if inventory.is_changed() {
+    // }
 }
 
 #[derive(Component)]

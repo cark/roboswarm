@@ -13,4 +13,5 @@ impl Plugin for InventoryPlugin {
 pub struct Inventory {
     pub arrow_count: u32,
     pub fork_count: u32,
+    pub grouper_count: u32,
 }

@@ -3,11 +3,13 @@
 
 mod arrow;
 mod bullet;
+mod draggable;
 mod explosion;
 mod fork;
 mod game;
 mod game_camera;
 mod game_ui;
+mod grouper;
 mod hp;
 mod inventory;
 mod levels;

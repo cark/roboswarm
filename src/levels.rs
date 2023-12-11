@@ -1,4 +1,5 @@
 use crate::arrow::EnemyArrowBundle;
+use crate::fork::EnemyForkBundle;
 use crate::game::{GameState, LevelState};
 use crate::game_camera::{CameraStartBundle, CameraTargetPos};
 use crate::game_ui::{ChangeLevelEvent, ResetLevelEvent};
@@ -12,13 +13,10 @@ use bevy_ecs_ldtk::prelude::*;
 use bevy_ecs_ldtk::{assets::LdtkProject, LdtkWorldBundle};
 use bevy_rapier2d::prelude::*;
 
-// TODO: set level background color to transparent
-
-//const GRID_SIZE: i32 = 16;
 const AFTER_LOAD: GameState = GameState::Playing;
 pub struct LevelsPlugin;
 
-const LEVEL_NAMES: [&str; 2] = ["Level_0", "Level_1"];
+const LEVEL_NAMES: [&str; 3] = ["Level_0", "Level_1", "Level_2"];
 
 impl Plugin for LevelsPlugin {
     fn build(&self, app: &mut App) {
@@ -58,6 +56,7 @@ impl Plugin for LevelsPlugin {
             .register_ldtk_entity::<PlayerPortalBundle>("PlayerPortal")
             .register_ldtk_entity::<EnemyPortalBundle>("EnemyPortal")
             .register_ldtk_entity::<EnemyArrowBundle>("EnemyArrow")
+            .register_ldtk_entity::<EnemyForkBundle>("EnemyFork")
             .register_ldtk_entity::<CameraStartBundle>("CameraStart");
         #[cfg(debug_assertions)]
         app.add_systems(Update, bleh.run_if(in_state(GameState::Playing)));
@@ -244,6 +243,7 @@ pub fn level_changed(
                 }
                 inventory.arrow_count = *level.get_int_field("player_arrows").unwrap() as u32;
                 inventory.fork_count = *level.get_int_field("player_forks").unwrap() as u32;
+                inventory.grouper_count = *level.get_int_field("player_groupers").unwrap() as u32;
 
                 level_size.0 = Some(size_info);
             }
@@ -374,8 +374,14 @@ fn watch_for_next_level(
 ) {
     for ev in ev_next_level.read() {
         match ev {
-            ChangeLevelEvent::Next => level_index.0 += 1,
-            ChangeLevelEvent::Previous => level_index.0 -= 1,
+            ChangeLevelEvent::Next => {
+                level_index.0 += 1;
+                // info("Next level event");
+            }
+            ChangeLevelEvent::Previous => {
+                level_index.0 -= 1;
+                // info("Previous level event")
+            }
         }
         *level_selection = LevelSelection::Identifier(LEVEL_NAMES[level_index.0].to_string());
     }
