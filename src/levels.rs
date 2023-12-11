@@ -16,7 +16,7 @@ use bevy_rapier2d::prelude::*;
 const AFTER_LOAD: GameState = GameState::Playing;
 pub struct LevelsPlugin;
 
-const LEVEL_NAMES: [&str; 3] = ["Level_0", "Level_1", "Level_2"];
+const LEVEL_NAMES: [&str; 4] = ["Level0", "Level1", "Level2", "Level3"];
 
 impl Plugin for LevelsPlugin {
     fn build(&self, app: &mut App) {
@@ -27,6 +27,7 @@ impl Plugin for LevelsPlugin {
             .insert_resource(MaxAttainableLevel(0))
             .insert_resource(LevelSelection::Identifier(LEVEL_NAMES[0].to_string()))
             .insert_resource(LevelSize::default())
+            .insert_resource(LevelTitle("".to_string()))
             // .insert_resource(CurrentLevel::default())
             .add_systems(OnEnter(GameState::LoadingLevels), load_ldtk)
             .add_systems(
@@ -99,6 +100,9 @@ fn bleh(
 fn set_level_index_changed(mut level_index: ResMut<LevelIndex>) {
     level_index.set_changed();
 }
+
+#[derive(Resource)]
+pub struct LevelTitle(pub String);
 
 //#[derive(Resource, Default)]
 // pub enum Victory {
@@ -221,6 +225,7 @@ pub fn level_changed(
     mut inventory: ResMut<Inventory>,
     mut level_count: ResMut<LevelCount>,
     mut next_level_state: ResMut<NextState<LevelState>>,
+    mut level_title: ResMut<LevelTitle>,
 ) {
     for level_event in level_events.read() {
         info(level_event);
@@ -244,7 +249,7 @@ pub fn level_changed(
                 inventory.arrow_count = *level.get_int_field("player_arrows").unwrap() as u32;
                 inventory.fork_count = *level.get_int_field("player_forks").unwrap() as u32;
                 inventory.grouper_count = *level.get_int_field("player_groupers").unwrap() as u32;
-
+                level_title.0 = level.get_string_field("title").unwrap().clone();
                 level_size.0 = Some(size_info);
             }
             LevelEvent::Transformed(_) => {

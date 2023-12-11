@@ -1,13 +1,15 @@
-use bevy::prelude::*;
+use std::time::Duration;
+
+use bevy::{ecs::system::SystemChangeTick, prelude::*};
 
 use crate::{
     arrow::DraggedArrow,
     fork::DraggedFork,
-    game::{GameState, LevelState},
+    game::LevelState,
     game_camera::MouseWorldCoords,
     grouper::DraggedGrouper,
     inventory::Inventory,
-    levels::{LevelCount, LevelIndex},
+    levels::{LevelCount, LevelIndex, LevelTitle},
     mouse::{Drag, DragPos, MouseState},
 };
 
@@ -33,6 +35,7 @@ impl Plugin for GameUiPlugin {
                     update_arrow_button,
                     update_fork_button,
                     update_grouper_button,
+                    update_level_title,
                 ),
             )
             .add_systems(Update, check_disabled.run_if(in_state(LevelState::Playing)))
@@ -100,8 +103,27 @@ pub enum ChangeLevelEvent {
 pub struct MainMenuEvent;
 
 #[derive(Component)]
+struct LevelTitleText;
+#[derive(Component)]
+struct LevelTitleTextShadow;
+
+#[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct ButtonDisabled;
+
+#[derive(Component, Default)]
+enum TitleState {
+    #[default]
+    Hidden,
+    Display(Timer),
+    Fade(Timer),
+}
+
+#[derive(Component)]
+struct BaseColor(Color);
+
+const TITLE_DISPLAY_TIME: Duration = Duration::from_millis(5000);
+const TITLE_FADE_TIME: Duration = Duration::from_millis(10000);
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
@@ -461,6 +483,38 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                 });
             });
         });
+        cmd.spawn((
+            TextBundle::from_section(
+                "Some level title here",
+                TextStyle {
+                    font: asset_server.load("GeoFont-Bold.otf"),
+                    font_size: 48.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                },
+            ),
+            LevelTitleText,
+            TitleState::default(),
+            BaseColor(Color::rgba(0.9, 0.9, 0.9, 1.0)),
+        ))
+        .with_children(|cmd| {
+            let mut bundle = TextBundle::from_section(
+                "Some level title here",
+                TextStyle {
+                    font: asset_server.load("GeoFont-Bold.otf"),
+                    font_size: 48.0,
+                    color: Color::rgba(0.0, 0.0, 0.0, 0.7),
+                },
+            );
+            bundle.z_index = ZIndex::Global(-10);
+            bundle.style.left = Val::Px(4.);
+            bundle.style.top = Val::Px(4.);
+            cmd.spawn((
+                LevelTitleTextShadow,
+                TitleState::default(),
+                bundle,
+                BaseColor(Color::rgba(0.0, 0.0, 0.0, 0.7)),
+            ));
+        });
         cmd.spawn(NodeBundle {
             style: Style {
                 width: Val::Percent(100.0),
@@ -630,6 +684,42 @@ fn update_grouper_button(
     }
     // if inventory.is_changed() {
     // }
+}
+
+fn update_level_title(
+    mut q_title: Query<(&mut Text, &mut TitleState, &BaseColor)>,
+    level_title: Res<LevelTitle>,
+    time: Res<Time>,
+) {
+    for (mut text, mut title_state, base_color) in &mut q_title {
+        let section = &mut text.sections[0];
+        if level_title.0 != section.value {
+            section.value = level_title.0.clone();
+            *title_state = TitleState::Display(Timer::new(TITLE_DISPLAY_TIME, TimerMode::Once));
+        }
+        match *title_state {
+            TitleState::Hidden => section.style.color = Color::rgba(0.0, 0.0, 0.0, 0.0),
+            TitleState::Display(ref mut timer) => {
+                timer.tick(time.delta());
+                if timer.finished() {
+                    *title_state = TitleState::Fade(Timer::new(TITLE_FADE_TIME, TimerMode::Once));
+                } else {
+                    section.style.color = base_color.0;
+                }
+            }
+            TitleState::Fade(ref mut timer) => {
+                timer.tick(time.delta());
+                if timer.finished() {
+                    *title_state = TitleState::Hidden;
+                } else {
+                    let alpha = (timer.duration().as_secs_f32() - timer.elapsed_secs())
+                        / timer.duration().as_secs_f32();
+                    let alpha = ((alpha + 0.01).log10() * 10.).exp().clamp(0.0, 1.0);
+                    section.style.color.set_a(base_color.0.a() * alpha);
+                }
+            }
+        }
+    }
 }
 
 #[derive(Component)]
