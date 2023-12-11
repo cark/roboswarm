@@ -5,14 +5,18 @@ use bevy::{
     prelude::*,
     utils::HashSet,
 };
-use bevy_ecs_ldtk::{GridCoords, LevelIid};
-use bevy_rapier2d::{prelude::*, rapier::geometry::CollisionEventFlags};
+use bevy_ecs_ldtk::{
+    prelude::*,
+    utils::{grid_coords_to_translation, ldtk_grid_coords_to_grid_coords},
+    GridCoords, LevelIid,
+};
+use bevy_rapier2d::prelude::*;
 
 use crate::{
     draggable::{drag_cancel_request, draggable_spawner, validate_drag, DragState, ValidDrag},
     game::GameState,
     inventory::Inventory,
-    levels::NoPlacingHere,
+    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere},
     load::TextureAssets,
     mouse::{ClickSensor, ClickSensorEvent, Drag, DragDropConfirm, DragDropRequest, DragPos},
     physics::{coll_groups, ObjectGroup, Team},
@@ -35,10 +39,57 @@ impl Plugin for GrouperPlugin {
                     check_click,
                 ),
                 update_robot_motors,
-                // fixup_enemy_fork,
+                fixup_enemy_grouper,
             )
                 .run_if(in_state(GameState::Playing)),
         );
+    }
+}
+
+#[derive(Component, Default)]
+struct LdtkDir(IVec2);
+
+#[derive(Bundle, LdtkEntity, Default)]
+pub struct EnemyGrouperBundle {
+    #[with(extract_ldtk_dir)]
+    ltdk_dir: LdtkDir,
+    #[grid_coords]
+    grid_coords: GridCoords,
+    enemy_grouper: EnemyGrouper,
+}
+
+fn extract_ldtk_dir(entity_instance: &EntityInstance) -> LdtkDir {
+    LdtkDir(*entity_instance.get_point_field("direction").unwrap())
+}
+
+#[derive(Component, Default)]
+struct EnemyGrouper;
+
+fn fixup_enemy_grouper(
+    mut cmd: Commands,
+    q_grouper: Query<(Entity, &LdtkDir, &GridCoords, &Transform), With<EnemyGrouper>>,
+    q_level: Query<Entity, With<LevelIid>>,
+    level_size: Res<LevelSize>,
+    mut ev_level_loaded: EventReader<LevelLoadedEvent>,
+) {
+    for _ in ev_level_loaded.read() {
+        for (entity, LdtkDir(ldtk_dir), grid_coords, tr) in &q_grouper {
+            if let Some(level_size) = level_size.0 {
+                let dir = ldtk_grid_coords_to_grid_coords(*ldtk_dir, level_size.size.y);
+                let dir = grid_coords_to_translation(dir, level_size.tile_size_vec());
+                let level_entity = q_level.single();
+                cmd.entity(entity).remove::<LdtkDir>();
+                let grouper = spawn_grouper(
+                    &mut cmd,
+                    *tr,
+                    (dir - tr.translation.truncate()).normalize(),
+                    Team::Enemy,
+                    None,
+                    *grid_coords,
+                );
+                cmd.entity(level_entity).add_child(grouper);
+            }
+        }
     }
 }
 
@@ -225,22 +276,6 @@ fn update_robot_motors(
                     }
                 }
             }
-            // CollisionEvent::Stopped(e1, e2, ev_flags) => {
-            //     let (sensor, other) =
-            //         match (q_robot_sensor.contains(*e1), q_robot_sensor.contains(*e2)) {
-            //             (true, false) => (*e1, *e2),
-            //             (false, true) => (*e2, *e1),
-            //             _ => continue,
-            //         };
-            //     if (*ev_flags & CollisionEventFlags::REMOVED).bits() != 0 {
-            //         if let Ok((mut grouper, _, _)) = q_robot_sensor
-            //             .get(sensor)
-            //             .and_then(|parent| q_grouper.get_mut(parent.get()))
-            //         {
-            //             grouper.group.remove(&other);
-            //         }
-            //     }
-            // }
             CollisionEvent::Stopped(_e1, _e2, _ev_flags) => {}
         }
     }

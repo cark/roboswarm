@@ -3,6 +3,7 @@ use crate::fork::EnemyForkBundle;
 use crate::game::{GameState, LevelState};
 use crate::game_camera::{CameraStartBundle, CameraTargetPos};
 use crate::game_ui::{ChangeLevelEvent, ResetLevelEvent};
+use crate::grouper::EnemyGrouperBundle;
 use crate::inventory::Inventory;
 use crate::physics::{coll_groups, ObjectGroup, Team};
 use crate::portal::{EnemyPortalBundle, PlayerPortalBundle, Portal};
@@ -58,6 +59,7 @@ impl Plugin for LevelsPlugin {
             .register_ldtk_entity::<EnemyPortalBundle>("EnemyPortal")
             .register_ldtk_entity::<EnemyArrowBundle>("EnemyArrow")
             .register_ldtk_entity::<EnemyForkBundle>("EnemyFork")
+            .register_ldtk_entity::<EnemyGrouperBundle>("EnemyGrouper")
             .register_ldtk_entity::<CameraStartBundle>("CameraStart");
         #[cfg(debug_assertions)]
         app.add_systems(Update, bleh.run_if(in_state(GameState::Playing)));
