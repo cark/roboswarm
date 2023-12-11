@@ -12,7 +12,7 @@ use bevy_rapier2d::{prelude::*, rapier::pipeline::DebugRenderObject};
 
 use crate::{
     explosion::ExplosionEvent,
-    game::GameState,
+    game::{GameState, LevelState},
     game_camera::MouseWorldCoords,
     hp::{Dead, Life},
     levels::WallCollider,
@@ -392,11 +392,7 @@ fn fire_canon(
     }
 }
 
-fn flash_nuzzle(
-    mut cmd: Commands,
-    mut q_nuzzle: Query<(&mut NuzzleFlash, &mut Visibility)>,
-    time: Res<Time>,
-) {
+fn flash_nuzzle(mut q_nuzzle: Query<(&mut NuzzleFlash, &mut Visibility)>, time: Res<Time>) {
     for (mut nuzzle, mut visibility) in &mut q_nuzzle {
         nuzzle.0.tick(time.delta());
         if nuzzle.0.finished() {
@@ -435,10 +431,13 @@ fn reset_robot_strength(mut q_robot: Query<&mut ExternalForce, With<Robot>>) {
 
 fn apply_engine_dir(
     mut q_robot: Query<(&EngineDir, &mut ExternalForce, Option<&RobotTarget>), With<Robot>>,
+    level_state: Res<State<LevelState>>,
 ) {
-    for (engine_dir, mut external_force, robot_target) in q_robot.iter_mut() {
-        if robot_target.is_none() {
-            external_force.force += engine_dir.0 * ROBOT_MOVEMENT_STRENGTH;
+    if *level_state == LevelState::Playing {
+        for (engine_dir, mut external_force, robot_target) in q_robot.iter_mut() {
+            if robot_target.is_none() {
+                external_force.force += engine_dir.0 * ROBOT_MOVEMENT_STRENGTH;
+            }
         }
     }
 }

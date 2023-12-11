@@ -4,7 +4,7 @@ use crate::{
     draggable::{drag_cancel_request, draggable_spawner, validate_drag, DragState, ValidDrag},
     game::GameState,
     inventory::Inventory,
-    levels::NoPlacingHere,
+    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere},
     load::TextureAssets,
     mouse::{ClickSensor, ClickSensorEvent, Drag, DragDropConfirm, DragDropRequest, DragPos},
     physics::{coll_groups, ObjectGroup, Team},
@@ -14,7 +14,10 @@ use bevy::{
     math::{vec2, vec3},
     prelude::*,
 };
-use bevy_ecs_ldtk::prelude::*;
+use bevy_ecs_ldtk::{
+    prelude::*,
+    utils::{grid_coords_to_translation, ldtk_grid_coords_to_grid_coords},
+};
 use bevy_rapier2d::prelude::*;
 
 pub struct DefenderPlugin;
@@ -32,7 +35,7 @@ impl Plugin for DefenderPlugin {
                     check_click,
                 ),
                 update_robot_motors,
-                // fixup_enemy_grouper,
+                fixup_enemy_defender,
             )
                 .run_if(in_state(GameState::Playing)),
         );
@@ -228,24 +231,6 @@ fn update_robot_motors(
                 }
             }
             CollisionEvent::Stopped(_e1, _e2, _ev_flags) => {} // CollisionEvent::Stopped(e1, e2, ev_flags) => {
-                                                               //     let (sensor, other) =
-                                                               //         match (q_robot_sensor.contains(*e1), q_robot_sensor.contains(*e2)) {
-                                                               //             (true, false) => (*e1, *e2),
-                                                               //             (false, true) => (*e2, *e1),
-                                                               //             _ => continue,
-                                                               //         };
-                                                               //     if ev_flags.intersects(CollisionEventFlags::REMOVED) {
-                                                               //         if let Ok((mut defender, _, _)) = q_robot_sensor
-                                                               //             .get(sensor)
-                                                               //             .and_then(|parent| q_defender.get_mut(parent.get()))
-                                                               //         {
-                                                               //             if let Some(index) = defender.group.iter().position(|&item| item == other) {
-                                                               //                 println!("removed 1");
-                                                               //                 defender.group.remove(index);
-                                                               //             }
-                                                               //         }
-                                                               //     }
-                                                               // }
         }
     }
     let remove_robots = &mut delete_robot.0;
@@ -265,6 +250,53 @@ fn update_robot_motors(
         for e_robot in remove_robots.iter() {
             if let Some(index) = defender.group.iter().position(|item| item == e_robot) {
                 defender.group.remove(index);
+            }
+        }
+    }
+}
+
+#[derive(Component, Default)]
+struct LdtkDir(IVec2);
+
+#[derive(Bundle, LdtkEntity, Default)]
+pub struct EnemyDefenderBundle {
+    #[with(extract_ldtk_dir)]
+    ltdk_dir: LdtkDir,
+    #[grid_coords]
+    grid_coords: GridCoords,
+    enemy_defender: EnemyDefender,
+}
+
+fn extract_ldtk_dir(entity_instance: &EntityInstance) -> LdtkDir {
+    LdtkDir(*entity_instance.get_point_field("direction").unwrap())
+}
+
+#[derive(Component, Default)]
+struct EnemyDefender;
+
+fn fixup_enemy_defender(
+    mut cmd: Commands,
+    q_defender: Query<(Entity, &LdtkDir, &GridCoords, &Transform), With<EnemyDefender>>,
+    q_level: Query<Entity, With<LevelIid>>,
+    level_size: Res<LevelSize>,
+    mut ev_level_loaded: EventReader<LevelLoadedEvent>,
+) {
+    for _ in ev_level_loaded.read() {
+        for (entity, LdtkDir(ldtk_dir), grid_coords, tr) in &q_defender {
+            if let Some(level_size) = level_size.0 {
+                let dir = ldtk_grid_coords_to_grid_coords(*ldtk_dir, level_size.size.y);
+                let dir = grid_coords_to_translation(dir, level_size.tile_size_vec());
+                let level_entity = q_level.single();
+                cmd.entity(entity).remove::<LdtkDir>();
+                let defender = spawn_defender(
+                    &mut cmd,
+                    *tr,
+                    (dir - tr.translation.truncate()).normalize(),
+                    Team::Enemy,
+                    None,
+                    *grid_coords,
+                );
+                cmd.entity(level_entity).add_child(defender);
             }
         }
     }

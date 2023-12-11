@@ -1,4 +1,5 @@
 use crate::arrow::EnemyArrowBundle;
+use crate::defender::EnemyDefenderBundle;
 use crate::fork::EnemyForkBundle;
 use crate::game::{GameState, LevelState};
 use crate::game_camera::{CameraStartBundle, CameraTargetPos};
@@ -17,8 +18,15 @@ use bevy_rapier2d::prelude::*;
 const AFTER_LOAD: GameState = GameState::Playing;
 pub struct LevelsPlugin;
 
-const LEVEL_NAMES: [&str; 5] = ["Level0", "Level1", "Level2", "Level3", "Level4"];
+#[cfg(debug_assertions)]
+const LEVEL_NAMES: [&str; 6] = ["Level0", "Level1", "Level2", "Level3", "Level4", "Level5"];
+#[cfg(debug_assertions)]
 const START_INDEX: usize = 4;
+
+#[cfg(not(debug_assertions))]
+const LEVEL_NAMES: [&str; 5] = ["Level0", "Level1", "Level2", "Level3", "Level4"];
+#[cfg(not(debug_assertions))]
+const START_INDEX: usize = 0;
 
 impl Plugin for LevelsPlugin {
     fn build(&self, app: &mut App) {
@@ -63,6 +71,7 @@ impl Plugin for LevelsPlugin {
             .register_ldtk_entity::<EnemyArrowBundle>("EnemyArrow")
             .register_ldtk_entity::<EnemyForkBundle>("EnemyFork")
             .register_ldtk_entity::<EnemyGrouperBundle>("EnemyGrouper")
+            .register_ldtk_entity::<EnemyDefenderBundle>("EnemyDefender")
             .register_ldtk_entity::<CameraStartBundle>("CameraStart");
         #[cfg(debug_assertions)]
         app.add_systems(Update, bleh.run_if(in_state(GameState::Playing)));

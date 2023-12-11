@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::utils::info;
 use bevy_easings::EasingsPlugin;
 use bevy_ecs_ldtk::assets::LdtkProject;
 use bevy_ecs_ldtk::LdtkPlugin;
@@ -83,14 +82,14 @@ impl Plugin for GamePlugin {
             watch_main_menu_event.run_if(in_state(GameState::Playing)),
         )
         .add_systems(PreUpdate, log_states);
-        app.add_plugins(RapierDebugRenderPlugin::default());
+        // #[cfg(debug_assertions)]
+        // app.add_plugins(RapierDebugRenderPlugin::default());
     }
 }
 
 fn watch_main_menu_event(
     mut cmd: Commands,
     mut ev_main_menu: EventReader<MainMenuEvent>,
-    //project_assets: Res<Assets<LdtkProject>>,
     q_project: Query<Entity, With<Handle<LdtkProject>>>,
     mut next_state: ResMut<NextState<GameState>>,
     mut next_level_state: ResMut<NextState<LevelState>>,

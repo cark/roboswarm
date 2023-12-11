@@ -7,7 +7,7 @@ use rand::Rng;
 
 use crate::{
     explosion::ExplosionEvent,
-    game::GameState,
+    game::{GameState, LevelState},
     hp::{Dead, Life},
     levels::NoPlacingHere,
     load::TextureAssets,
@@ -113,31 +113,34 @@ fn check_portal_robot_spawn(
     mut ev_explosion: EventWriter<ExplosionEvent>,
     mut q_portal: Query<(&mut Portal, &Transform, &Team)>,
     time: Res<Time>,
+    level_state: Res<State<LevelState>>,
 ) {
-    for (mut portal, tr, team) in &mut q_portal {
-        portal.spawn_timer.tick(time.delta());
-        if portal.spawn_timer.finished() && tr.translation != Vec3::ZERO {
-            portal.spawn_timer.reset();
-            ev_spawn_robot.send(SpawnRobotEvent {
-                dir: portal.dir.normalize(),
-                pos: tr.translation.truncate(),
-                team: *team,
-                // team: Team::Enemy,
-            });
-            ev_explosion.send(ExplosionEvent {
-                colors: [
-                    Color::rgba(1.0, 1.0, 1.0, 0.8),
-                    Color::rgba(0.9, 0.9, 0.9, 0.3),
-                    Color::rgba(0.8, 0.8, 0.8, 0.0),
-                ],
-                location: tr.translation.truncate(),
-                duration: Duration::from_secs_f32(0.3),
-                particle_radius: 8.,
-                spread: 12.,
-                particle_duration: Duration::from_secs_f32(0.8),
-                particle_count: 40,
-                ..Default::default()
-            })
+    if *level_state == LevelState::Playing {
+        for (mut portal, tr, team) in &mut q_portal {
+            portal.spawn_timer.tick(time.delta());
+            if portal.spawn_timer.finished() && tr.translation != Vec3::ZERO {
+                portal.spawn_timer.reset();
+                ev_spawn_robot.send(SpawnRobotEvent {
+                    dir: portal.dir.normalize(),
+                    pos: tr.translation.truncate(),
+                    team: *team,
+                    // team: Team::Enemy,
+                });
+                ev_explosion.send(ExplosionEvent {
+                    colors: [
+                        Color::rgba(1.0, 1.0, 1.0, 0.8),
+                        Color::rgba(0.9, 0.9, 0.9, 0.3),
+                        Color::rgba(0.8, 0.8, 0.8, 0.0),
+                    ],
+                    location: tr.translation.truncate(),
+                    duration: Duration::from_secs_f32(0.3),
+                    particle_radius: 8.,
+                    spread: 12.,
+                    particle_duration: Duration::from_secs_f32(0.8),
+                    particle_count: 40,
+                    ..Default::default()
+                })
+            }
         }
     }
 }
