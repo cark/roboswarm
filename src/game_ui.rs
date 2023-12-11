@@ -130,7 +130,7 @@ enum TitleState {
 struct BaseColor(Color);
 
 const TITLE_DISPLAY_TIME: Duration = Duration::from_millis(5000);
-const TITLE_FADE_TIME: Duration = Duration::from_millis(10000);
+const TITLE_FADE_TIME: Duration = Duration::from_millis(6000);
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
@@ -369,6 +369,7 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                         border: UiRect::all(Val::Px(5.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        margin: UiRect::all(Val::Px(6.0)),
                         ..Default::default()
                     },
                     border_color: BorderColor(Color::BLACK),
@@ -386,6 +387,7 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                         width: Val::Percent(100.),
                         height: Val::Percent(100.),
                         align_items: AlignItems::Center,
+
                         ..Default::default()
                     },
                     ..Default::default()
@@ -402,6 +404,7 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                         border: UiRect::all(Val::Px(5.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        margin: UiRect::all(Val::Px(6.0)),
                         ..Default::default()
                     },
                     border_color: BorderColor(Color::BLACK),
@@ -435,6 +438,7 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                         border: UiRect::all(Val::Px(5.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        margin: UiRect::all(Val::Px(6.0)),
                         ..Default::default()
                     },
                     border_color: BorderColor(Color::BLACK),
@@ -468,6 +472,7 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                         border: UiRect::all(Val::Px(5.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        margin: UiRect::all(Val::Px(6.0)),
                         ..Default::default()
                     },
                     border_color: BorderColor(Color::BLACK),
@@ -604,10 +609,12 @@ fn spawn_placeable_button<ButtonMarker: Component, TextMarker: Component>(
                 border: UiRect::all(Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
+                margin: UiRect::all(Val::Px(6.0)),
                 ..Default::default()
             },
             border_color: BorderColor(Color::BLACK),
             background_color: NORMAL_BUTTON.into(),
+
             ..Default::default()
         },
         ButtonState::None,

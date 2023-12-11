@@ -12,7 +12,7 @@
 </head>
 
 <body>
-    <!-- <link data-trunk rel="inline" href="build/web/sound.js" /> -->
+    <link data-trunk rel="inline" href="build/web/sound.js" />
     <div class="game-container">
         <div class="lds-dual-ring"></div>
         <canvas id="bevy">
@@ -20,5 +20,11 @@
         </canvas>
     </div>
 </body>
+<script>
+    var canvas = document.getElementById('bevy');
+    canvas.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+    });
+</script>
 
 </html>

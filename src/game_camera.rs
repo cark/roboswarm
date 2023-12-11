@@ -6,8 +6,8 @@ use crate::{game::GameState, levels::LevelLoadedEvent};
 // const CAMERA_SPEED: f32 = 100.0;
 
 const CAMERA_DEFAULT_SCALE: f32 = 0.25;
-const CAMERA_MIN_SCALE: f32 = 0.1;
-const CAMERA_MAX_SCALE: f32 = 1.0;
+const CAMERA_MIN_SCALE: f32 = 0.2;
+const CAMERA_MAX_SCALE: f32 = 0.45;
 pub struct GameCameraPlugin;
 
 #[derive(Resource, Default)]
@@ -64,6 +64,7 @@ fn fixup_camera_start(
     q_camera_start: Query<(Entity, &GlobalTransform), With<CameraStart>>,
     //q_level: Query<Entity, (With<LevelIid>, Changed<Transform>)>,
     mut camera_target_pos: ResMut<CameraTargetPos>,
+    mut camera_target_scale: ResMut<CameraTargetScale>,
 ) {
     for _ in ev_level_loaded.read() {
         //for _ in &q_level {
@@ -75,6 +76,7 @@ fn fixup_camera_start(
             //println!("{}", gtr.translation());
             //println!("{}", q_level.single().translation());
             camera_target_pos.0 = gtr.translation();
+            camera_target_scale.0 = CAMERA_DEFAULT_SCALE;
             cmd.entity(entity).despawn_recursive();
         }
     }

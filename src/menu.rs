@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 
 use crate::game::GameState;
 
@@ -9,6 +9,7 @@ impl Plugin for MenuPlugin {
         app.insert_resource(ButtonState::None)
             .add_systems(OnEnter(GameState::Menu), init_menu)
             .add_systems(OnExit(GameState::Menu), destroy)
+            .add_systems(PreUpdate, fix_font_sizes.run_if(in_state(GameState::Menu)))
             .add_systems(Update, button_system.run_if(in_state(GameState::Menu)));
     }
 }
@@ -25,6 +26,12 @@ enum ButtonState {
 
 #[derive(Component)]
 struct Menu;
+
+#[derive(Component)]
+struct TitleText;
+
+#[derive(Component)]
+struct ButtonText;
 
 fn destroy(mut cmd: Commands, q: Query<Entity, With<Menu>>) {
     for e in &q {
@@ -79,6 +86,21 @@ fn button_system(
     }
 }
 
+fn fix_font_sizes(
+    q_window: Query<&Window, With<PrimaryWindow>>,
+    mut q_title_text: Query<&mut Text, (With<TitleText>, Without<ButtonText>)>,
+    mut q_button_text: Query<&mut Text, (Without<TitleText>, With<ButtonText>)>,
+) {
+    let window = q_window.single();
+    let height = window.height();
+    for mut text in &mut q_title_text {
+        text.sections[0].style.font_size = height / 6.;
+    }
+    for mut text in &mut q_button_text {
+        text.sections[0].style.font_size = height / 10.;
+    }
+}
+
 fn init_menu(mut cmd: Commands, asset_server: Res<AssetServer>) {
     cmd.spawn((
         Menu,
@@ -86,18 +108,32 @@ fn init_menu(mut cmd: Commands, asset_server: Res<AssetServer>) {
             style: Style {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
+                justify_content: JustifyContent::SpaceAround,
                 align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
                 ..Default::default()
             },
             ..Default::default()
         },
     ))
     .with_children(|cmd| {
+        cmd.spawn((
+            TitleText,
+            TextBundle::from_section(
+                "Roboswarm",
+                TextStyle {
+                    font: asset_server.load("GeoFont-Bold.otf"),
+                    font_size: 60.,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                },
+            ),
+        ));
         cmd.spawn(ButtonBundle {
             style: Style {
-                width: Val::Px(150.0),
-                height: Val::Px(65.0),
+                // width: Val::Px(150.0),
+                // height: Val::Px(65.0),
+                // padding: UiRect::new(Val::Px(20.), Val::Px(20.), Val::Px(15.), Val::Px(10.)),
+                padding: UiRect::new(Val::VMax(2.), Val::VMax(2.), Val::VMax(1.5), Val::VMax(1.)),
                 border: UiRect::all(Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -108,13 +144,16 @@ fn init_menu(mut cmd: Commands, asset_server: Res<AssetServer>) {
             ..Default::default()
         })
         .with_children(|cmd| {
-            cmd.spawn(TextBundle::from_section(
-                "Start",
-                TextStyle {
-                    font: asset_server.load("GeoFont-Bold.otf"),
-                    font_size: 40.0,
-                    color: Color::rgb(0.9, 0.9, 0.9),
-                },
+            cmd.spawn((
+                ButtonText,
+                TextBundle::from_section(
+                    "Start",
+                    TextStyle {
+                        font: asset_server.load("GeoFont-Bold.otf"),
+                        font_size: 40.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                    },
+                ),
             ));
         });
     });

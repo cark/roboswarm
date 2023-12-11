@@ -11,7 +11,7 @@ fn main() {
     let window = Window {
         title: "Bevy game".to_string(),
         // Bind to canvas included in `index.html`
-        // canvas: Some("#bevy".to_owned()),
+        canvas: Some("#bevy".to_owned()),
         // The canvas size is constrained in index.html and build/web/styles.css
         fit_canvas_to_parent: true,
         // Tells wasm not to override default event handling, like F5 and Ctrl+R
@@ -29,6 +29,7 @@ fn main() {
     let mut app = App::new();
     app.insert_resource(Msaa::Off)
         .insert_resource(ClearColor(Color::rgb(0.5, 0.1, 0.2)))
+        .insert_resource(AssetMetaCheck::Never)
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -36,10 +37,14 @@ fn main() {
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
+            // .set(AssetPlugin {
+            //     mode: AssetMode::Processed,
+            //     ..default()
+            // }),
             GamePlugin,
         ));
 
-    app.insert_resource(AssetMetaCheck::Never);
+    ////app.insert_resource(AssetMetaCheck::Never);
     // .add_systems(Startup, set_window_icon)
     app.run();
 }
