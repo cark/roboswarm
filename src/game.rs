@@ -6,6 +6,7 @@ use bevy_ecs_ldtk::LdtkPlugin;
 
 use crate::arrow::ArrowPlugin;
 use crate::bullet::BulletPlugin;
+use crate::defender::DefenderPlugin;
 use crate::explosion::ExplosionPlugin;
 use crate::fork::ForkPlugin;
 use crate::game_ui::{GameUiPlugin, MainMenuEvent};
@@ -59,7 +60,13 @@ impl Plugin for GamePlugin {
                 InventoryPlugin,
                 GameUiPlugin,
             ),
-            (PortalPlugin, ArrowPlugin, ForkPlugin, GrouperPlugin),
+            (
+                PortalPlugin,
+                ArrowPlugin,
+                ForkPlugin,
+                GrouperPlugin,
+                DefenderPlugin,
+            ),
             BulletPlugin,
             HpPlugin,
             ExplosionPlugin,

@@ -1,111 +1,57 @@
-use std::f32::consts::PI;
-
-use bevy::{
-    math::{vec2, vec3},
-    prelude::*,
-    utils::HashSet,
-};
-use bevy_ecs_ldtk::{
-    prelude::*,
-    utils::{grid_coords_to_translation, ldtk_grid_coords_to_grid_coords},
-    GridCoords, LevelIid,
-};
-use bevy_rapier2d::prelude::*;
+use std::{collections::VecDeque, f32::consts::PI};
 
 use crate::{
     draggable::{drag_cancel_request, draggable_spawner, validate_drag, DragState, ValidDrag},
     game::GameState,
     inventory::Inventory,
-    levels::{LevelLoadedEvent, LevelSize, NoPlacingHere},
+    levels::NoPlacingHere,
     load::TextureAssets,
     mouse::{ClickSensor, ClickSensorEvent, Drag, DragDropConfirm, DragDropRequest, DragPos},
     physics::{coll_groups, ObjectGroup, Team},
     robot::{EngineDir, Robot},
 };
+use bevy::{
+    math::{vec2, vec3},
+    prelude::*,
+};
+use bevy_ecs_ldtk::prelude::*;
+use bevy_rapier2d::prelude::*;
 
-const GROUP_SIZE: usize = 25;
-pub struct GrouperPlugin;
+pub struct DefenderPlugin;
 
-impl Plugin for GrouperPlugin {
+impl Plugin for DefenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
             (
                 (
-                    draggable_spawner::<DraggedGrouper>("grouper.png"),
-                    validate_drag::<DraggedGrouper>,
-                    drag_cancel_request::<DraggedGrouper>,
+                    draggable_spawner::<DraggedDefender>("defender.png"),
+                    validate_drag::<DraggedDefender>,
+                    drag_cancel_request::<DraggedDefender>,
                     drop_request,
                     check_click,
                 ),
                 update_robot_motors,
-                fixup_enemy_grouper,
+                // fixup_enemy_grouper,
             )
                 .run_if(in_state(GameState::Playing)),
         );
     }
 }
 
-#[derive(Component, Default)]
-struct LdtkDir(IVec2);
-
-#[derive(Bundle, LdtkEntity, Default)]
-pub struct EnemyGrouperBundle {
-    #[with(extract_ldtk_dir)]
-    ltdk_dir: LdtkDir,
-    #[grid_coords]
-    grid_coords: GridCoords,
-    enemy_grouper: EnemyGrouper,
-}
-
-fn extract_ldtk_dir(entity_instance: &EntityInstance) -> LdtkDir {
-    LdtkDir(*entity_instance.get_point_field("direction").unwrap())
-}
-
-#[derive(Component, Default)]
-struct EnemyGrouper;
-
-fn fixup_enemy_grouper(
-    mut cmd: Commands,
-    q_grouper: Query<(Entity, &LdtkDir, &GridCoords, &Transform), With<EnemyGrouper>>,
-    q_level: Query<Entity, With<LevelIid>>,
-    level_size: Res<LevelSize>,
-    mut ev_level_loaded: EventReader<LevelLoadedEvent>,
-) {
-    for _ in ev_level_loaded.read() {
-        for (entity, LdtkDir(ldtk_dir), grid_coords, tr) in &q_grouper {
-            if let Some(level_size) = level_size.0 {
-                let dir = ldtk_grid_coords_to_grid_coords(*ldtk_dir, level_size.size.y);
-                let dir = grid_coords_to_translation(dir, level_size.tile_size_vec());
-                let level_entity = q_level.single();
-                cmd.entity(entity).remove::<LdtkDir>();
-                let grouper = spawn_grouper(
-                    &mut cmd,
-                    *tr,
-                    (dir - tr.translation.truncate()).normalize(),
-                    Team::Enemy,
-                    None,
-                    *grid_coords,
-                );
-                cmd.entity(level_entity).add_child(grouper);
-            }
-        }
-    }
-}
+#[derive(Component)]
+pub struct DraggedDefender;
 
 #[derive(Component)]
-pub struct DraggedGrouper;
+struct DefenderClickSensor;
 
 #[derive(Component)]
-struct GrouperClickSensor;
+struct DefenderRobotSensor;
 
 #[derive(Component)]
-struct GrouperRobotSensor;
-
-#[derive(Component)]
-pub struct Grouper {
+pub struct Defender {
     dir: Vec2,
-    group: HashSet<Entity>,
+    group: VecDeque<Entity>,
 }
 
 fn drop_request(
@@ -118,7 +64,7 @@ fn drop_request(
             &mut DragState,
             &GridCoords,
         ),
-        (With<DragDropRequest>, With<DraggedGrouper>),
+        (With<DragDropRequest>, With<DraggedDefender>),
     >,
     assets: Res<TextureAssets>,
     mut inventory: ResMut<Inventory>,
@@ -134,19 +80,19 @@ fn drop_request(
                 DragState::SettingDirection(_) => {
                     let dir = drag_tr.rotation.mul_vec3(vec3(1.0, 0.0, 0.0));
                     let (level_entity, level_gtr) = q_level.single();
-                    inventory.grouper_count -= 1;
+                    inventory.defender_count -= 1;
                     cmd.entity(entity).insert(DragDropConfirm);
                     let local_pos = drag_tr.translation - level_gtr.translation();
                     //info(grid_coords);
-                    let grouper = spawn_grouper(
+                    let defender = spawn_defender(
                         &mut cmd,
                         drag_tr.with_translation(local_pos),
                         dir.truncate(),
                         Team::Player,
-                        Some(assets.grouper.clone()),
+                        Some(assets.defender.clone()),
                         *grid_coords,
                     );
-                    cmd.entity(level_entity).add_child(grouper);
+                    cmd.entity(level_entity).add_child(defender);
                 }
             }
         } else {
@@ -155,7 +101,7 @@ fn drop_request(
     }
 }
 
-fn spawn_grouper(
+fn spawn_defender(
     cmd: &mut Commands,
     tr: Transform,
     dir: Vec2,
@@ -165,7 +111,7 @@ fn spawn_grouper(
 ) -> Entity {
     let spawned_entity = cmd
         .spawn((
-            Grouper {
+            Defender {
                 dir,
                 group: Default::default(),
             },
@@ -189,7 +135,7 @@ fn spawn_grouper(
     cmd.entity(spawned_entity).with_children(|cmd| {
         if team == Team::Player {
             cmd.spawn((
-                GrouperClickSensor,
+                DefenderClickSensor,
                 ClickSensor,
                 Collider::capsule(vec2(-4., 0.0), vec2(3., 0.0), 12.),
                 Sensor,
@@ -197,16 +143,16 @@ fn spawn_grouper(
             ));
         }
         cmd.spawn((
-            GrouperRobotSensor,
+            DefenderRobotSensor,
             Sensor,
             Collider::ball(96.),
             match team {
                 Team::Player => coll_groups(
-                    ObjectGroup::PLAYER_GROUPER_SENSOR,
+                    ObjectGroup::PLAYER_DEFENDER_SENSOR,
                     ObjectGroup::PLAYER_ROBOT,
                 ),
                 Team::Enemy => {
-                    coll_groups(ObjectGroup::ENEMY_GROUPER_SENSOR, ObjectGroup::ENEMY_ROBOT)
+                    coll_groups(ObjectGroup::ENEMY_DEFENDER_SENSOR, ObjectGroup::ENEMY_ROBOT)
                 }
             },
             TransformBundle::default(),
@@ -219,36 +165,38 @@ fn spawn_grouper(
 fn check_click(
     mut cmd: Commands,
     mut ev_click_sensor: EventReader<ClickSensorEvent>,
-    q_sensor: Query<&Parent, With<GrouperClickSensor>>,
-    q_grouper: Query<(Entity, &GlobalTransform, &Team), With<Grouper>>,
+    q_sensor: Query<&Parent, With<DefenderClickSensor>>,
+    q_defender: Query<(Entity, &GlobalTransform, &Team), With<Defender>>,
     mut inventory: ResMut<Inventory>,
 ) {
     for ClickSensorEvent(sensor_entity) in ev_click_sensor.read() {
-        if let Ok((arrow_entity, arrow_gtr, team)) = q_sensor
+        if let Ok((defender_entity, defender_gtr, team)) = q_sensor
             .get(*sensor_entity)
             .map(|parent| parent.get())
-            .and_then(|arrow_entity| q_grouper.get(arrow_entity))
+            .and_then(|defender_entity| q_defender.get(defender_entity))
         {
             if *team == Team::Player {
-                inventory.grouper_count += 1;
+                inventory.defender_count += 1;
                 cmd.spawn((
                     Drag,
-                    DragPos(arrow_gtr.translation().truncate()),
-                    DraggedGrouper,
+                    DragPos(defender_gtr.translation().truncate()),
+                    DraggedDefender,
                 ));
-                cmd.entity(arrow_entity).despawn_recursive();
+                cmd.entity(defender_entity).despawn_recursive();
             }
         }
     }
 }
+
+const GROUP_SIZE: usize = 25;
 
 #[derive(Resource, Default)]
 struct DeleteRobots(Vec<Entity>);
 
 fn update_robot_motors(
     mut collision_events: EventReader<CollisionEvent>,
-    q_robot_sensor: Query<&Parent, With<GrouperRobotSensor>>,
-    mut q_grouper: Query<(&mut Grouper, &Team, &Transform)>,
+    q_robot_sensor: Query<&Parent, With<DefenderRobotSensor>>,
+    mut q_defender: Query<(&mut Defender, &Team, &Transform)>,
     mut q_robot: Query<(&mut EngineDir, &Team, &Transform), With<Robot>>,
     mut delete_robot: Local<DeleteRobots>,
 ) {
@@ -261,36 +209,53 @@ fn update_robot_motors(
                         (false, true) => (*e2, *e1),
                         _ => continue,
                     };
-                if let (Ok((_, robot_team, _)), Ok((mut grouper, grouper_team, _))) = (
+                if let (Ok((_, robot_team, _)), Ok((mut defender, defender_team, _))) = (
                     q_robot.get(other),
                     q_robot_sensor
                         .get(sensor)
-                        .and_then(|parent| q_grouper.get_mut(parent.get())),
+                        .and_then(|parent| q_defender.get_mut(parent.get())),
                 ) {
-                    if robot_team == grouper_team {
-                        grouper.group.insert(other);
-                        if grouper.group.len() >= GROUP_SIZE {
-                            for &entity in grouper.group.iter() {
-                                if let Ok((mut engine_dir, _, _)) = q_robot.get_mut(entity) {
-                                    engine_dir.0 = grouper.dir;
-                                }
+                    if robot_team == defender_team {
+                        defender.group.push_back(other);
+                        while defender.group.len() >= GROUP_SIZE {
+                            if let Ok((mut engine_dir, _, _)) =
+                                q_robot.get_mut(defender.group.pop_front().unwrap())
+                            {
+                                engine_dir.0 = defender.dir;
                             }
-                            grouper.group.clear();
                         }
                     }
                 }
             }
-            CollisionEvent::Stopped(_e1, _e2, _ev_flags) => {}
+            CollisionEvent::Stopped(_e1, _e2, _ev_flags) => {} // CollisionEvent::Stopped(e1, e2, ev_flags) => {
+                                                               //     let (sensor, other) =
+                                                               //         match (q_robot_sensor.contains(*e1), q_robot_sensor.contains(*e2)) {
+                                                               //             (true, false) => (*e1, *e2),
+                                                               //             (false, true) => (*e2, *e1),
+                                                               //             _ => continue,
+                                                               //         };
+                                                               //     if ev_flags.intersects(CollisionEventFlags::REMOVED) {
+                                                               //         if let Ok((mut defender, _, _)) = q_robot_sensor
+                                                               //             .get(sensor)
+                                                               //             .and_then(|parent| q_defender.get_mut(parent.get()))
+                                                               //         {
+                                                               //             if let Some(index) = defender.group.iter().position(|&item| item == other) {
+                                                               //                 println!("removed 1");
+                                                               //                 defender.group.remove(index);
+                                                               //             }
+                                                               //         }
+                                                               //     }
+                                                               // }
         }
     }
     let remove_robots = &mut delete_robot.0;
-    for (mut grouper, _, g_tr) in &mut q_grouper {
+    for (mut defender, _, d_tr) in &mut q_defender {
         remove_robots.clear();
-        for e_robot in grouper.group.iter() {
+        for e_robot in defender.group.iter() {
             if let Ok((mut engine_dir, _, r_tr)) = q_robot.get_mut(*e_robot) {
-                let to_grouper = (g_tr.translation - r_tr.translation).normalize();
+                let to_defender = (d_tr.translation - r_tr.translation).normalize();
                 let rotated = Quat::from_rotation_z(-PI / 4.0)
-                    .mul_vec3(to_grouper)
+                    .mul_vec3(to_defender)
                     .truncate();
                 engine_dir.0 = rotated * 1.5; //to_grouper.truncate();
             } else {
@@ -298,7 +263,9 @@ fn update_robot_motors(
             }
         }
         for e_robot in remove_robots.iter() {
-            grouper.group.remove(e_robot);
+            if let Some(index) = defender.group.iter().position(|item| item == e_robot) {
+                defender.group.remove(index);
+            }
         }
     }
 }

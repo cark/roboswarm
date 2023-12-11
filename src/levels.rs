@@ -7,7 +7,7 @@ use crate::grouper::EnemyGrouperBundle;
 use crate::inventory::Inventory;
 use crate::physics::{coll_groups, ObjectGroup, Team};
 use crate::portal::{EnemyPortalBundle, PlayerPortalBundle, Portal};
-use bevy::math::{ivec2, vec2};
+use bevy::math::ivec2;
 use bevy::prelude::*;
 use bevy::utils::{info, HashMap};
 use bevy_ecs_ldtk::prelude::*;
@@ -17,16 +17,19 @@ use bevy_rapier2d::prelude::*;
 const AFTER_LOAD: GameState = GameState::Playing;
 pub struct LevelsPlugin;
 
-const LEVEL_NAMES: [&str; 4] = ["Level0", "Level1", "Level2", "Level3"];
+const LEVEL_NAMES: [&str; 5] = ["Level0", "Level1", "Level2", "Level3", "Level4"];
+const START_INDEX: usize = 4;
 
 impl Plugin for LevelsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(LdtkAsset::default())
             .add_event::<LevelLoadedEvent>()
-            .insert_resource(LevelIndex(0))
+            .insert_resource(LevelIndex(START_INDEX))
             .insert_resource(LevelCount(0))
             .insert_resource(MaxAttainableLevel(0))
-            .insert_resource(LevelSelection::Identifier(LEVEL_NAMES[0].to_string()))
+            .insert_resource(LevelSelection::Identifier(
+                LEVEL_NAMES[START_INDEX].to_string(),
+            ))
             .insert_resource(LevelSize::default())
             .insert_resource(LevelTitle("".to_string()))
             // .insert_resource(CurrentLevel::default())
@@ -251,6 +254,7 @@ pub fn level_changed(
                 inventory.arrow_count = *level.get_int_field("player_arrows").unwrap() as u32;
                 inventory.fork_count = *level.get_int_field("player_forks").unwrap() as u32;
                 inventory.grouper_count = *level.get_int_field("player_groupers").unwrap() as u32;
+                inventory.defender_count = *level.get_int_field("player_defenders").unwrap() as u32;
                 level_title.0 = level.get_string_field("title").unwrap().clone();
                 level_size.0 = Some(size_info);
             }

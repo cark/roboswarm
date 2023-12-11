@@ -3,6 +3,7 @@
 
 mod arrow;
 mod bullet;
+mod defender;
 mod draggable;
 mod explosion;
 mod fork;

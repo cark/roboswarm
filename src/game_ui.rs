@@ -4,6 +4,7 @@ use bevy::{ecs::system::SystemChangeTick, prelude::*};
 
 use crate::{
     arrow::DraggedArrow,
+    defender::DraggedDefender,
     fork::DraggedFork,
     game::LevelState,
     game_camera::MouseWorldCoords,
@@ -35,6 +36,7 @@ impl Plugin for GameUiPlugin {
                     update_arrow_button,
                     update_fork_button,
                     update_grouper_button,
+                    update_defender_button,
                     update_level_title,
                 ),
             )
@@ -62,6 +64,8 @@ struct ArrowButton;
 struct ForkButton;
 #[derive(Component)]
 struct GrouperButton;
+#[derive(Component)]
+struct DefenderButton;
 
 #[derive(Component)]
 struct NextLevelButton;
@@ -77,6 +81,7 @@ enum ButtonType {
     Arrow,
     Fork,
     Grouper,
+    Defender,
     Reset,
     NextLevel,
     PreviousLevel,
@@ -89,6 +94,8 @@ struct ArrowButtonText;
 struct ForkButtonText;
 #[derive(Component)]
 struct GrouperButtonText;
+#[derive(Component)]
+struct DefenderButtonText;
 
 #[derive(Event)]
 pub struct ResetLevelEvent;
@@ -289,6 +296,15 @@ fn button_system(
                                             Drag,
                                             DragPos(mouse_pos.0.unwrap()),
                                             DraggedGrouper,
+                                        ));
+                                    }
+                                }
+                                ButtonType::Defender => {
+                                    if inventory.defender_count > 0 {
+                                        cmd.spawn((
+                                            Drag,
+                                            DragPos(mouse_pos.0.unwrap()),
+                                            DraggedDefender,
                                         ));
                                     }
                                 }
@@ -563,6 +579,14 @@ fn instanciate_ui(mut cmd: Commands, asset_server: Res<AssetServer>) {
                     GrouperButton,
                     GrouperButtonText,
                 );
+                spawn_placeable_button(
+                    cmd,
+                    &asset_server,
+                    "defender.png",
+                    ButtonType::Defender,
+                    DefenderButton,
+                    DefenderButtonText,
+                );
             });
         });
     });
@@ -660,8 +684,6 @@ fn update_arrow_button(
     if let Ok(mut text) = q_arrow_button_text.get_single_mut() {
         text.sections[0].value = inventory.arrow_count.to_string();
     }
-    // if inventory.is_changed() {
-    // }
 }
 
 fn update_fork_button(
@@ -671,8 +693,6 @@ fn update_fork_button(
     if let Ok(mut text) = q_fork_button_text.get_single_mut() {
         text.sections[0].value = inventory.fork_count.to_string();
     }
-    // if inventory.is_changed() {
-    // }
 }
 
 fn update_grouper_button(
@@ -682,8 +702,14 @@ fn update_grouper_button(
     if let Ok(mut text) = q_grouper_button_text.get_single_mut() {
         text.sections[0].value = inventory.grouper_count.to_string();
     }
-    // if inventory.is_changed() {
-    // }
+}
+fn update_defender_button(
+    mut q_defender_button_text: Query<&mut Text, With<DefenderButtonText>>,
+    inventory: Res<Inventory>,
+) {
+    if let Ok(mut text) = q_defender_button_text.get_single_mut() {
+        text.sections[0].value = inventory.defender_count.to_string();
+    }
 }
 
 fn update_level_title(
